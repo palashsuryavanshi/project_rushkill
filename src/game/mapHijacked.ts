@@ -163,8 +163,8 @@ export function buildHijackedMap(): MapData {
   // Stern Deck (Z: 24 to 54, W: 24)
   createSolidBox(24, 0.4, 30, 0, -0.4, 39, matTeakDeck);
 
-  // Ground Floor Cabin Floor (inside walls) - flush with main deck at Y=-0.4 to 0
-  createSolidBox(16.8, 0.4, 43.8, 0, -0.4, 0, matTeakDeck);
+  // Ground Floor Cabin Floor (inside walls) - flush with main deck at Y=-0.4 to 0, slightly raised to prevent Z-fighting
+  createSolidBox(16.8, 0.4, 43.8, 0, -0.399, 0, matTeakDeck);
 
   // Main Deck Floor boundary colliders (fall protection & ground)
   addCollider(-12, -0.5, -55, 12, 0.01, 55);
@@ -182,8 +182,8 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // 2. BOW (FORWARD DECK) - HELIPAD & COVER
   // ==========================================
-  // Helipad platform (slightly raised disc/square) - top at Y=0.15
-  const helipadBase = createSolidBox(15, 0.15, 15, 0, 0, -41, matHelipadGray);
+  // Helipad platform (slightly raised disc/square) - top at Y=0.15, base at Y=0.001 to avoid Z-fighting with deck
+  const helipadBase = createSolidBox(15, 0.15, 15, 0, 0.001, -41, matHelipadGray);
   // Helipad Yellow Circle - raised slightly above helipad surface to prevent Z-fighting
   const heliRingGeo = new THREE.RingGeometry(5.2, 5.8, 32);
   heliRingGeo.rotateX(-Math.PI / 2);
@@ -281,27 +281,27 @@ export function buildHijackedMap(): MapData {
   createSolidBox(0.4, 2.2, 0.4, 8.5, 0, 19, matHullWhite);
   createSolidBox(2.0, 0.4, 0.4, 8.5, 2.2, 18, matHullWhite); // lintel
 
-  // --- UPPER FLOOR (Y: 4.4 to 8.4) ---
+  // --- UPPER FLOOR (Y: 4.401 to 8.4) ---
   // Roof / Upper Deck: Y = 8.2
   createSolidBox(15, 0.4, 34, 0, 8.2, 0, matHullWhite);
 
-  // Upper Bridge Cabin Walls - start at Y=4.4 (top of ground floor ceiling)
-  createSolidBox(14, 4.0, 0.4, 0, 4.4, -16, matGlassTinted, { renderOrder: 1 }); // Front observation bridge glass
-  createSolidBox(14, 4.0, 0.4, 0, 4.4, 16, matGlassTinted, { renderOrder: 1 }); // Rear observation glass
+  // Upper Bridge Cabin Walls - start at Y=4.401 (slightly above ground floor ceiling top at Y=4.4 to prevent Z-fighting)
+  createSolidBox(14, 4.0, 0.4, 0, 4.401, -16, matGlassTinted, { renderOrder: 1 }); // Front observation bridge glass
+  createSolidBox(14, 4.0, 0.4, 0, 4.401, 16, matGlassTinted, { renderOrder: 1 }); // Rear observation glass
 
   // Port side upper wall (X = -7) with doorways at stairs (Z = -18, 18)
-  createSolidBox(0.4, 4.0, 10, -7.0, 4.4, -21, matHullWhite); // Z: -26 to -16
-  createSolidBox(0.4, 4.0, 6, -7.0, 4.4, -13, matHullWhite);  // Z: -16 to -10 (doorway gap at -18 to -14)
-  createSolidBox(0.4, 4.0, 10, -7.0, 4.4, -3, matHullWhite);   // Z: -8 to 2
-  createSolidBox(0.4, 4.0, 6, -7.0, 4.4, 7, matHullWhite);     // Z: 4 to 10 (doorway gap at 14 to 18)
-  createSolidBox(0.4, 4.0, 10, -7.0, 4.4, 17, matHullWhite);   // Z: 12 to 22
+  createSolidBox(0.4, 4.0, 10, -7.0, 4.401, -21, matHullWhite); // Z: -26 to -16
+  createSolidBox(0.4, 4.0, 6, -7.0, 4.401, -13, matHullWhite);  // Z: -16 to -10 (doorway gap at -18 to -14)
+  createSolidBox(0.4, 4.0, 10, -7.0, 4.401, -3, matHullWhite);   // Z: -8 to 2
+  createSolidBox(0.4, 4.0, 6, -7.0, 4.401, 7, matHullWhite);     // Z: 4 to 10 (doorway gap at 14 to 18)
+  createSolidBox(0.4, 4.0, 10, -7.0, 4.401, 17, matHullWhite);   // Z: 12 to 22
 
   // Starboard side upper wall (X = 7) with doorways at stairs (Z = -18, 18)
-  createSolidBox(0.4, 4.0, 10, 7.0, 4.4, -21, matHullWhite);
-  createSolidBox(0.4, 4.0, 6, 7.0, 4.4, -13, matHullWhite);
-  createSolidBox(0.4, 4.0, 10, 7.0, 4.4, -3, matHullWhite);
-  createSolidBox(0.4, 4.0, 6, 7.0, 4.4, 7, matHullWhite);
-  createSolidBox(0.4, 4.0, 10, 7.0, 4.4, 17, matHullWhite);
+  createSolidBox(0.4, 4.0, 10, 7.0, 4.401, -21, matHullWhite);
+  createSolidBox(0.4, 4.0, 6, 7.0, 4.401, -13, matHullWhite);
+  createSolidBox(0.4, 4.0, 10, 7.0, 4.401, -3, matHullWhite);
+  createSolidBox(0.4, 4.0, 6, 7.0, 4.401, 7, matHullWhite);
+  createSolidBox(0.4, 4.0, 10, 7.0, 4.401, 17, matHullWhite);
 
   // Doorway lintels for upper floor port side
   createSolidBox(0.4, 0.4, 4.0, -7.0, 8.2, -18, matHullWhite); // front stair lintel
@@ -311,9 +311,9 @@ export function buildHijackedMap(): MapData {
   createSolidBox(0.4, 0.4, 4.0, 7.0, 8.2, -18, matHullWhite);
   createSolidBox(0.4, 0.4, 4.0, 7.0, 8.2, 18, matHullWhite);
 
-  // Upper Catwalk Railings - aligned with upper walls at Y=4.4
-  createSolidBox(0.3, 1.1, 42, -8.3, 4.4, 0, matChromeRailing);
-  createSolidBox(0.3, 1.1, 42, 8.3, 4.4, 0, matChromeRailing);
+  // Upper Catwalk Railings - aligned with upper walls at Y=4.401
+  createSolidBox(0.3, 1.1, 42, -8.3, 4.401, 0, matChromeRailing);
+  createSolidBox(0.3, 1.1, 42, 8.3, 4.401, 0, matChromeRailing);
 
   // Roof Radar Mast & Satellite Domes
   const mastGeo = new THREE.CylinderGeometry(0.15, 0.25, 4.5, 8);
