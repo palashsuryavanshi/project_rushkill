@@ -150,21 +150,21 @@ export function buildHijackedMap(): MapData {
   bowNose.position.set(0, -1, -66);
   root.add(bowNose);
 
-  // Main Deck Surface (Teak wood): Y = 0 (top face at Y=0)
+  // Main Deck Surface (Teak wood): Y = -0.4 to 0 (top face at Y=0)
   // Bow Deck (Z: -54 to -24, W: 24)
   createSolidBox(24, 0.4, 30, 0, -0.4, -39, matTeakDeck);
 
-  // Starboard Walkway (X: 8.5 to 12, Z: -24 to +24) - slightly wider to cover seams
-  createSolidBox(3.7, 0.4, 48.4, 10.25, -0.4, 0, matTeakDeck);
+  // Starboard Walkway (X: 8.5 to 12, Z: -24 to +24) - extended to overlap bow/stern seams
+  createSolidBox(3.7, 0.4, 52, 10.25, -0.4, 0, matTeakDeck);
 
-  // Port Walkway (X: -12 to -8.5, Z: -24 to +24) - slightly wider to cover seams
-  createSolidBox(3.7, 0.4, 48.4, -10.25, -0.4, 0, matTeakDeck);
+  // Port Walkway (X: -12 to -8.5, Z: -24 to +24) - extended to overlap bow/stern seams
+  createSolidBox(3.7, 0.4, 52, -10.25, -0.4, 0, matTeakDeck);
 
   // Stern Deck (Z: 24 to 54, W: 24)
   createSolidBox(24, 0.4, 30, 0, -0.4, 39, matTeakDeck);
 
-  // Ground Floor Cabin Floor (inside walls) - explicit floor at Y=0 to prevent gaps
-  createSolidBox(16.8, 0.05, 43.8, 0, 0, 0, matTeakDeck);
+  // Ground Floor Cabin Floor (inside walls) - flush with main deck at Y=-0.4 to 0
+  createSolidBox(16.8, 0.4, 43.8, 0, -0.4, 0, matTeakDeck);
 
   // Main Deck Floor boundary colliders (fall protection & ground)
   addCollider(-12, -0.5, -55, 12, 0.01, 55);
