@@ -1,14 +1,14 @@
 <div align="center">
 <h1>Rushkill : FPS Shooter</h1>
-<p><em>Fast-paced 3D browser FPS with Krunker-style movement</em></p>
+<p><em>Fast-paced 3D browser FPS with arcade-style movement</em></p>
 </div>
 
-A single-player arena FPS built with React, Three.js, and TypeScript. Fight AI bots on a Hijacked-inspired yacht map with a full MW3-era arsenal.
+A single-player arena FPS built with React, Three.js, and TypeScript. Fight AI bots on a Hijacked-inspired yacht map with a custom arsenal.
 
 ## Features
 
 - **15 weapons** across 4 categories (AR, SMG, Shotgun, Sniper) with authentic ballistics
-- **Krunker-style movement**: bunny-hop, slide-hop, air-strafe, coyote/jump buffering
+- **Arcade-style movement**: bunny-hop, slide-hop, air-strafe, coyote/jump buffering
 - **Advanced bot AI** with 6 personalities × 4 difficulties, perception system (FOV, LOS, hearing)
 - **Procedural audio** via Web Audio API — zero external audio files
 - **Score streaks** (Double Kill → Bloodthirsty → Merciless → Relentless)
