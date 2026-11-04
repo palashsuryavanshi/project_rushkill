@@ -44,6 +44,8 @@ const matOpticGlass = new THREE.MeshPhysicalMaterial({
   metalness: 0.1,
   transparent: true,
   opacity: 0.6,
+  depthWrite: false,
+  renderOrder: 1,
 });
 
 const matMuzzleFlash = new THREE.MeshBasicMaterial({
@@ -143,6 +145,7 @@ export function buildGunModel(weapon: WeaponDef): GunRig {
     const lensGeo = new THREE.BoxGeometry(0.044, 0.044, 0.005);
     const lens = new THREE.Mesh(lensGeo, matOpticGlass);
     lens.position.set(0, 0.08, -0.05);
+    lens.renderOrder = 1;
     root.add(lens);
 
     // Red dot reticle pip inside lens

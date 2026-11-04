@@ -40,13 +40,16 @@ export function buildHijackedMap(): MapData {
     y: number,
     z: number,
     mat: THREE.Material,
-    options?: { noCollider?: boolean; castShadow?: boolean; receiveShadow?: boolean }
+    options?: { noCollider?: boolean; castShadow?: boolean; receiveShadow?: boolean; renderOrder?: number }
   ): THREE.Mesh {
     const geo = new THREE.BoxGeometry(w, h, d);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y + h / 2, z);
     mesh.castShadow = options?.castShadow ?? true;
     mesh.receiveShadow = options?.receiveShadow ?? true;
+    if (options?.renderOrder !== undefined) {
+      mesh.renderOrder = options.renderOrder;
+    }
     root.add(mesh);
 
     if (!options?.noCollider) {
@@ -191,8 +194,11 @@ export function buildHijackedMap(): MapData {
 
   // Helipad 'H' letter - raised above ring
   const hBar1 = createSolidBox(0.6, 0.05, 4.4, -1.6, 0.20, -41, matHelipadYellow, { noCollider: true });
+  hBar1.renderOrder = 2;
   const hBar2 = createSolidBox(0.6, 0.05, 4.4, 1.6, 0.20, -41, matHelipadYellow, { noCollider: true });
+  hBar2.renderOrder = 2;
   const hCross = createSolidBox(3.2, 0.05, 0.6, 0, 0.20, -41, matHelipadYellow, { noCollider: true });
+  hCross.renderOrder = 2;
 
   // Helipad safety crates & equipment
   createSolidBox(2.2, 1.8, 1.8, -7.5, 0, -35, matCrateOlive);
@@ -227,12 +233,12 @@ export function buildHijackedMap(): MapData {
   // Port Side Wall (X: -8.5) with large tinted glass windows & side doors
   createSolidBox(0.4, 4.2, 14, -8.5, 0, -15, matHullWhite);
   createSolidBox(0.4, 4.2, 14, -8.5, 0, 15, matHullWhite);
-  createSolidBox(0.4, 3.8, 16, -8.5, 0.2, 0, matGlassTinted); // mid glass section
+  createSolidBox(0.4, 3.8, 16, -8.5, 0.2, 0, matGlassTinted, { renderOrder: 1 }); // mid glass section
 
   // Starboard Side Wall (X: 8.5) with windows
   createSolidBox(0.4, 4.2, 14, 8.5, 0, -15, matHullWhite);
   createSolidBox(0.4, 4.2, 14, 8.5, 0, 15, matHullWhite);
-  createSolidBox(0.4, 3.8, 16, 8.5, 0.2, 0, matGlassTinted);
+  createSolidBox(0.4, 3.8, 16, 8.5, 0.2, 0, matGlassTinted, { renderOrder: 1 });
 
   // Interior Luxury Bar Counter (Z = 0)
   createSolidBox(5.0, 1.2, 1.6, 0, 0, 0, matDarkCarbon);
@@ -280,8 +286,8 @@ export function buildHijackedMap(): MapData {
   createSolidBox(15, 0.4, 34, 0, 8.2, 0, matHullWhite);
 
   // Upper Bridge Cabin Walls - start at Y=4.4 (top of ground floor ceiling)
-  createSolidBox(14, 4.0, 0.4, 0, 4.4, -16, matGlassTinted); // Front observation bridge glass
-  createSolidBox(14, 4.0, 0.4, 0, 4.4, 16, matGlassTinted); // Rear observation glass
+  createSolidBox(14, 4.0, 0.4, 0, 4.4, -16, matGlassTinted, { renderOrder: 1 }); // Front observation bridge glass
+  createSolidBox(14, 4.0, 0.4, 0, 4.4, 16, matGlassTinted, { renderOrder: 1 }); // Rear observation glass
 
   // Port side upper wall (X = -7) with doorways at stairs (Z = -18, 18)
   createSolidBox(0.4, 4.0, 10, -7.0, 4.4, -21, matHullWhite); // Z: -26 to -16

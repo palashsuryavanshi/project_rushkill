@@ -361,11 +361,12 @@ export function createBot(
   badgeCanvas.width = 64;
   badgeCanvas.height = 64;
   const badgeTexture = new THREE.CanvasTexture(badgeCanvas);
-  const badgeSpriteMat = new THREE.SpriteMaterial({ map: badgeTexture, transparent: true });
+  const badgeSpriteMat = new THREE.SpriteMaterial({ map: badgeTexture, transparent: true, depthWrite: false });
   const awarenessBadge = new THREE.Sprite(badgeSpriteMat);
   awarenessBadge.scale.set(0.4, 0.4, 1);
   awarenessBadge.position.set(0, 2.7, 0);
   awarenessBadge.visible = false;
+  awarenessBadge.renderOrder = 3;
   root.add(awarenessBadge);
 
   // Nameplate Sprite
@@ -391,6 +392,7 @@ export function createBot(
   const nameSprite = new THREE.Sprite(nameSpriteMat);
   nameSprite.scale.set(1.5, 0.375, 1);
   nameSprite.position.set(0, 2.95, 0);
+  nameSprite.renderOrder = 3;
   root.add(nameSprite);
 
   // Death Debris Group

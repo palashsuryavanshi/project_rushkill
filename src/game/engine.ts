@@ -186,12 +186,16 @@ export class GameEngine {
     const width = Math.max(1, this.container.clientWidth || window.innerWidth || 800);
     const height = Math.max(1, this.container.clientHeight || window.innerHeight || 600);
     this.renderer.setSize(width, height);
+    // Allow up to 2x pixel ratio for crisp rendering on high-DPI, but cap for performance
     this.renderer.setPixelRatio(this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
+    this.renderer.toneMappingExposure = 1.05; // Slightly reduced for better highlight retention
     this.renderer.shadowMap.enabled = !this.isSoftwareGl;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap deprecated/removed in r160+
+    this.renderer.shadowMap.autoUpdate = true;
+    // Enable physically correct lights for proper PBR
+    this.renderer.physicallyCorrectLights = true;
 
     this.container.appendChild(this.renderer.domElement);
   }
@@ -218,13 +222,16 @@ export class GameEngine {
     const sunLight = new THREE.DirectionalLight(0xfffaed, 2.2);
     sunLight.position.set(45, 60, -35);
     sunLight.castShadow = !this.isSoftwareGl;
-    sunLight.shadow.mapSize.width = 1024;
-    sunLight.shadow.mapSize.height = 1024;
-    sunLight.shadow.bias = -0.0005;
-    sunLight.shadow.camera.left = -60;
-    sunLight.shadow.camera.right = 60;
-    sunLight.shadow.camera.top = 60;
-    sunLight.shadow.camera.bottom = -60;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.bias = -0.0003;
+    sunLight.shadow.normalBias = 0.02;
+    sunLight.shadow.camera.left = -80;
+    sunLight.shadow.camera.right = 80;
+    sunLight.shadow.camera.top = 80;
+    sunLight.shadow.camera.bottom = -80;
+    sunLight.shadow.camera.near = 0.5;
+    sunLight.shadow.camera.far = 200;
     this.scene.add(sunLight);
 
     const hemiLight = new THREE.HemisphereLight(0xbbeeff, 0x334455, 1.0);
