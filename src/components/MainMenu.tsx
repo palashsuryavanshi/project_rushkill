@@ -42,10 +42,9 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       <div className="flex items-start justify-between">
         {/* Custom Inline SVG Title Lockup */}
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-amber-500/40 border border-amber-300">
-            <svg viewBox="0 0 24 24" className="w-9 h-9 text-black fill-current">
-              <path d="M12 2L2 7l10 5 10-5-10-5zm0 8.5L4.5 7 12 3.2 19.5 7 12 10.5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
+          {/* Custom Logo */}
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl shadow-amber-500/40 border border-amber-300 overflow-hidden">
+            <img src="/logo.png" alt="Project Rushkill" className="w-full h-full object-cover" />
           </div>
           <div>
             <div className="flex items-center gap-2.5">
