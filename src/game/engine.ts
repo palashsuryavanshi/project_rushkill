@@ -129,6 +129,7 @@ export class GameEngine {
         alpha: false,
         depth: true,
         stencil: false,
+        logarithmicDepthBuffer: false, // Keep disabled for performance, but we'll improve near/far planes
       });
     } catch (primaryErr) {
       console.warn('Primary WebGLRenderer init failed, trying safe fallback:', primaryErr);
@@ -208,7 +209,7 @@ export class GameEngine {
     this.camera = new THREE.PerspectiveCamera(
       this.settings.fov,
       this.container.clientWidth / this.container.clientHeight,
-      0.1,
+      0.01,
       600
     );
     this.camera.rotation.order = 'YXZ';
@@ -224,8 +225,8 @@ export class GameEngine {
     sunLight.castShadow = !this.isSoftwareGl;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
-    sunLight.shadow.bias = -0.0003;
-    sunLight.shadow.normalBias = 0.02;
+    sunLight.shadow.bias = -0.0001;
+    sunLight.shadow.normalBias = 0.015;
     sunLight.shadow.camera.left = -80;
     sunLight.shadow.camera.right = 80;
     sunLight.shadow.camera.top = 80;

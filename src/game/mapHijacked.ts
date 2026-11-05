@@ -69,6 +69,8 @@ export function buildHijackedMap(): MapData {
     color: 0xb5824c, // warm rich yacht teak wood
     roughness: 0.7,
     metalness: 0.05,
+    depthWrite: true,
+    depthTest: true,
   });
 
   const matDarkCarbon = new THREE.MeshStandardMaterial({
@@ -152,22 +154,22 @@ export function buildHijackedMap(): MapData {
 
   // Main Deck Surface (Teak wood): Y = -0.4 to 0 (top face at Y=0)
   // Bow Deck (Z: -54 to -24, W: 24)
-  createSolidBox(24, 0.4, 30, 0, -0.4, -39, matTeakDeck);
+  createSolidBox(24, 0.4, 30, 0, -0.4, -39, matTeakDeck, { renderOrder: 0 });
 
   // Starboard Walkway (X: 8.5 to 12, Z: -24 to +24) - extended to overlap bow/stern seams
-  createSolidBox(3.7, 0.4, 52, 10.25, -0.4, 0, matTeakDeck);
+  createSolidBox(3.7, 0.4, 52, 10.25, -0.4, 0, matTeakDeck, { renderOrder: 0 });
 
   // Port Walkway (X: -12 to -8.5, Z: -24 to +24) - extended to overlap bow/stern seams
-  createSolidBox(3.7, 0.4, 52, -10.25, -0.4, 0, matTeakDeck);
+  createSolidBox(3.7, 0.4, 52, -10.25, -0.4, 0, matTeakDeck, { renderOrder: 0 });
 
   // Stern Deck (Z: 24 to 54, W: 24)
-  createSolidBox(24, 0.4, 30, 0, -0.4, 39, matTeakDeck);
+  createSolidBox(24, 0.4, 30, 0, -0.4, 39, matTeakDeck, { renderOrder: 0 });
 
   // Ground Floor Cabin Floor (inside walls) - flush with main deck at Y=-0.4 to 0, raised to prevent Z-fighting
-  createSolidBox(16.8, 0.4, 43.8, 0, -0.398, 0, matTeakDeck);
+  createSolidBox(16.8, 0.4, 43.8, 0, -0.395, 0, matTeakDeck, { renderOrder: 0 });
 
-  // Main Deck Floor boundary colliders (fall protection & ground)
-  addCollider(-12, -0.5, -55, 12, 0.01, 55);
+  // Main Deck Floor boundary colliders (fall protection & ground) - slightly below floor to avoid interference
+  addCollider(-12, -0.5, -55, 12, -0.01, 55);
 
   // Exterior Bulwark / Edge Railings (prevent falling into ocean)
   // Left Railing (Port)
@@ -182,8 +184,8 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // 2. BOW (FORWARD DECK) - HELIPAD & COVER
   // ==========================================
-  // Helipad platform (slightly raised disc/square) - top at Y=0.15, base at Y=0.002 to avoid Z-fighting with deck
-  const helipadBase = createSolidBox(15, 0.15, 15, 0, 0.002, -41, matHelipadGray);
+  // Helipad platform (slightly raised disc/square) - top at Y=0.15, base at Y=0.005 to avoid Z-fighting with deck
+  const helipadBase = createSolidBox(15, 0.15, 15, 0, 0.005, -41, matHelipadGray);
   // Helipad Yellow Circle - raised slightly above helipad surface to prevent Z-fighting
   const heliRingGeo = new THREE.RingGeometry(5.2, 5.8, 32);
   heliRingGeo.rotateX(-Math.PI / 2);
@@ -218,7 +220,7 @@ export function buildHijackedMap(): MapData {
   // Cabin Dimensions: W: 17, L: 44 (Z: -22 to +22)
   // --- GROUND FLOOR (Y: 0 to 4.2) ---
   // Ground floor ceiling / Upper floor deck: Y = 4.2 (top at Y=4.4)
-  createSolidBox(17, 0.4, 44, 0, 4.201, 0, matTeakDeck);
+  createSolidBox(17, 0.4, 44, 0, 4.205, 0, matTeakDeck);
 
   // Front Wall of Ground Cabin (with central doorway)
   createSolidBox(6.5, 4.2, 0.4, -5.25, 0, -22, matHullWhite);
@@ -283,7 +285,7 @@ export function buildHijackedMap(): MapData {
 
   // --- UPPER FLOOR (Y: 4.401 to 8.4) ---
   // Roof / Upper Deck: Y = 8.2
-  createSolidBox(15, 0.4, 34, 0, 8.202, 0, matHullWhite);
+  createSolidBox(15, 0.4, 34, 0, 8.208, 0, matHullWhite);
 
   // Upper Bridge Cabin Walls - start at Y=4.401 (slightly above ground floor ceiling top at Y=4.4 to prevent Z-fighting)
   createSolidBox(14, 4.0, 0.4, 0, 4.401, -16, matGlassTinted, { renderOrder: 1 }); // Front observation bridge glass
