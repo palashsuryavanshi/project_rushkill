@@ -50,10 +50,10 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <div>
             <div className="flex items-center gap-2.5">
               <span className="text-4xl font-black tracking-wider text-white uppercase drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
-                RUSHKILL
+                PROJECT
               </span>
               <span className="text-4xl font-black text-amber-400 uppercase tracking-wider drop-shadow-[0_2px_12px_rgba(245,158,11,0.4)]">
-                : FPS SHOOTER
+                RUSHKILL
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-300 mt-0.5">
