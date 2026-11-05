@@ -901,20 +901,25 @@ export function updateBotAI(
 
   // Ground collision for bots
   let botGrounded = false;
+  let highestBotGroundY = -999;
   for (const c of colliders) {
     if (
       bot.pos.x + 0.4 > c.min.x &&
       bot.pos.x - 0.4 < c.max.x &&
       bot.pos.z + 0.4 > c.min.z &&
       bot.pos.z - 0.4 < c.max.z &&
-      bot.pos.y + 1.8 > c.min.y &&
-      bot.pos.y + 1.8 < c.max.y + 0.1
+      c.max.y <= bot.pos.y + 0.5 &&
+      bot.pos.y >= c.min.y - 0.2
     ) {
-      botGrounded = true;
-      bot.pos.y = c.max.y - 1.8;
-      bot.velocity.y = 0;
-      break;
+      if (c.max.y > highestBotGroundY) {
+        highestBotGroundY = c.max.y;
+      }
     }
+  }
+  if (highestBotGroundY > -900 && bot.pos.y <= highestBotGroundY + 0.15) {
+    bot.pos.y = highestBotGroundY;
+    bot.velocity.y = 0;
+    botGrounded = true;
   }
   bot.isGrounded = botGrounded;
 

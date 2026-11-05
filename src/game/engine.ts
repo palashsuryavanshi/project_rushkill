@@ -47,6 +47,7 @@ export class GameEngine {
   private yaw: number = 0;
   private isGrounded: boolean = true;
   private isSliding: boolean = false;
+  private currentCamHeight: number = 1.7;
   private slideTimer: number = 0;
   private coyoteTimer: number = 0;
   private jumpBufferTimer: number = 0;
@@ -127,9 +128,7 @@ export class GameEngine {
         antialias: true,
         powerPreference: 'high-performance',
         alpha: false,
-        depth: true,
-        stencil: false,
-        logarithmicDepthBuffer: true, // Enabled for millimeter depth accuracy
+        logarithmicDepthBuffer: false,
       });
     } catch (primaryErr) {
       console.warn('Primary WebGLRenderer init failed, trying safe fallback:', primaryErr);
@@ -195,8 +194,6 @@ export class GameEngine {
     this.renderer.shadowMap.enabled = !this.isSoftwareGl;
     this.renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap deprecated/removed in r160+
     this.renderer.shadowMap.autoUpdate = true;
-    // Enable physically correct lights for proper PBR
-    this.renderer.physicallyCorrectLights = true;
 
     this.container.appendChild(this.renderer.domElement);
   }
@@ -225,8 +222,8 @@ export class GameEngine {
     sunLight.castShadow = !this.isSoftwareGl;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
-    sunLight.shadow.bias = -0.0001;
-    sunLight.shadow.normalBias = 0.02;
+    sunLight.shadow.bias = -0.00005;
+    sunLight.shadow.normalBias = 0.03;
     sunLight.shadow.camera.left = -80;
     sunLight.shadow.camera.right = 80;
     sunLight.shadow.camera.top = 80;
@@ -977,88 +974,77 @@ export class GameEngine {
   }
 
   private resolveCollisions(nextPos: THREE.Vector3) {
-    const playerRadius = 0.5;
+    const playerRadius = 0.45;
     const playerHeight = this.isSliding ? 1.0 : 1.8;
+    const stepHeight = 0.45;
 
-    // Floor check: Ground at Y = 0 (main deck), Y = 4.2 (upper deck), Y = -3.2 (tunnel)
-    let groundY = -999;
-    let slopeDetected = false;
+    // 1. Detect walkable ground beneath player's horizontal footprint
+    let highestGroundY = -999;
 
     for (const c of this.mapData.colliders) {
-      // Horizontal AABB overlap check
       if (
         nextPos.x + playerRadius > c.min.x &&
         nextPos.x - playerRadius < c.max.x &&
         nextPos.z + playerRadius > c.min.z &&
         nextPos.z - playerRadius < c.max.z
       ) {
-        // Check if on top of collider (floor/stair)
-        if (this.playerPos.y >= c.max.y - 0.45 && nextPos.y <= c.max.y + 0.1) {
-          if (c.max.y > groundY) {
-            groundY = c.max.y;
-            
-            // Slope detection - check nearby ground height
-            const slopeCheckDistance = 0.3;
-            const forwardCheck = new THREE.Vector3(
-              Math.sin(this.yaw) * slopeCheckDistance,
-              0,
-              Math.cos(this.yaw) * slopeCheckDistance
-            );
-            const checkPos = this.playerPos.clone().add(forwardCheck);
-            const nearbyCollider = this.mapData.colliders.find(coll => 
-              checkPos.x + playerRadius > coll.min.x &&
-              checkPos.x - playerRadius < coll.max.x &&
-              checkPos.z + playerRadius > coll.min.z &&
-              checkPos.z - playerRadius < coll.max.z
-            );
-            
-            if (nearbyCollider && Math.abs(c.max.y - nearbyCollider.max.y) > 0.2) {
-              slopeDetected = true;
-            }
+        // Can be stood upon if top of collider is within walkable step height and above minimum
+        if (c.max.y <= this.playerPos.y + stepHeight && nextPos.y >= c.min.y - 0.25) {
+          if (c.max.y > highestGroundY) {
+            highestGroundY = c.max.y;
           }
-        } else if (nextPos.y < c.max.y && nextPos.y + playerHeight > c.min.y) {
-          // Improved wall collision resolution
+        }
+      }
+    }
+
+    // 2. Snap to floor if within landing contact distance and not ascending from a jump
+    if (highestGroundY > -900 && (nextPos.y <= highestGroundY + 0.15 || this.playerPos.y <= highestGroundY + 0.05)) {
+      if (this.playerVel.y <= 0) {
+        nextPos.y = highestGroundY;
+        this.playerVel.y = 0;
+        this.isGrounded = true;
+      } else {
+        this.isGrounded = false;
+      }
+    } else {
+      this.isGrounded = false;
+    }
+
+    // 3. Resolve horizontal collisions against walls and obstacles (taller than feet + stepHeight)
+    for (const c of this.mapData.colliders) {
+      // Ignore floors beneath feet
+      if (c.max.y <= nextPos.y + 0.08) continue;
+
+      // Vertical overlap check
+      if (nextPos.y < c.max.y && nextPos.y + playerHeight > c.min.y) {
+        // Horizontal overlap check
+        if (
+          nextPos.x + playerRadius > c.min.x &&
+          nextPos.x - playerRadius < c.max.x &&
+          nextPos.z + playerRadius > c.min.z &&
+          nextPos.z - playerRadius < c.max.z
+        ) {
           const pushX1 = c.max.x - (nextPos.x - playerRadius);
           const pushX2 = (nextPos.x + playerRadius) - c.min.x;
           const pushZ1 = c.max.z - (nextPos.z - playerRadius);
           const pushZ2 = (nextPos.z + playerRadius) - c.min.z;
           const minPush = Math.min(pushX1, pushX2, pushZ1, pushZ2);
 
-          // Calculate collision normal for proper velocity resolution
-          let pushOut = new THREE.Vector3();
           if (minPush === pushX1) {
             nextPos.x = c.max.x + playerRadius;
-            pushOut.x = pushX1;
-            this.playerVel.x = Math.max(0, this.playerVel.x); // Don't push back into wall
+            if (this.playerVel.x < 0) this.playerVel.x = 0;
           } else if (minPush === pushX2) {
             nextPos.x = c.min.x - playerRadius;
-            pushOut.x = -pushX2;
-            this.playerVel.x = Math.min(0, this.playerVel.x);
+            if (this.playerVel.x > 0) this.playerVel.x = 0;
           } else if (minPush === pushZ1) {
             nextPos.z = c.max.z + playerRadius;
-            pushOut.z = pushZ1;
-            this.playerVel.z = Math.max(0, this.playerVel.z);
+            if (this.playerVel.z < 0) this.playerVel.z = 0;
           } else if (minPush === pushZ2) {
             nextPos.z = c.min.z - playerRadius;
-            pushOut.z = -pushZ2;
-            this.playerVel.z = Math.min(0, this.playerVel.z);
+            if (this.playerVel.z > 0) this.playerVel.z = 0;
           }
         }
       }
-    }
-
-    // Ground collision with slope detection
-    if (groundY > -900 && nextPos.y <= groundY + 0.05) {
-      if (!slopeDetected) {
-        nextPos.y = groundY;
-        this.playerVel.y = 0;
-        this.isGrounded = true;
-      } else {
-        // On a slope - reduce ground contact
-        this.isGrounded = false;
-      }
-    } else {
-      this.isGrounded = false;
     }
 
     this.playerPos.copy(nextPos);
@@ -1069,9 +1055,10 @@ export class GameEngine {
     this.recoilPitch = THREE.MathUtils.damp(this.recoilPitch, 0, this.activeWeapon.recoilRecoverySpeed, dt);
     this.recoilYaw = THREE.MathUtils.damp(this.recoilYaw, 0, this.activeWeapon.recoilRecoverySpeed, dt);
 
-    // Camera height (crouch / slide drops height)
-    const targetCamHeight = this.isSliding ? 0.8 : 1.7;
-    const currentCamY = this.playerPos.y + targetCamHeight;
+    // Camera height with smooth damping for sliding/standing transitions
+    const targetCamHeight = this.isSliding ? 0.85 : 1.7;
+    this.currentCamHeight = THREE.MathUtils.damp(this.currentCamHeight, targetCamHeight, 18.0, dt);
+    const currentCamY = this.playerPos.y + this.currentCamHeight;
 
     this.camera.position.set(this.playerPos.x, currentCamY, this.playerPos.z);
     this.camera.rotation.set(this.pitch + this.recoilPitch, this.yaw + this.recoilYaw, 0, 'YXZ');

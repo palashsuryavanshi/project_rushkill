@@ -45,7 +45,6 @@ const matOpticGlass = new THREE.MeshPhysicalMaterial({
   transparent: true,
   opacity: 0.6,
   depthWrite: false,
-  renderOrder: 1,
 });
 
 const matMuzzleFlash = new THREE.MeshBasicMaterial({

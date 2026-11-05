@@ -141,17 +141,17 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // 1. MAIN YACHT HULL & DECKS
   // ==========================================
-  // Midship hull - split into port and starboard lower bilges to avoid tunnel penetration
+  // Midship hull - split into port and starboard lower bilges, placed strictly below deck (top at Y=-0.4)
   // Port lower bilge
-  const hullPortGeo = new THREE.BoxGeometry(9.3, 6.5, 110);
+  const hullPortGeo = new THREE.BoxGeometry(9.3, 6.0, 110);
   const hullPort = new THREE.Mesh(hullPortGeo, matDarkCarbon);
-  hullPort.position.set(-7.35, -3.25, 0);
+  hullPort.position.set(-7.35, -3.4, 0);
   root.add(hullPort);
 
   // Starboard lower bilge
-  const hullStarboardGeo = new THREE.BoxGeometry(9.3, 6.5, 110);
+  const hullStarboardGeo = new THREE.BoxGeometry(9.3, 6.0, 110);
   const hullStarboard = new THREE.Mesh(hullStarboardGeo, matDarkCarbon);
-  hullStarboard.position.set(7.35, -3.25, 0);
+  hullStarboard.position.set(7.35, -3.4, 0);
   root.add(hullStarboard);
 
   // Pointed Bow taper
@@ -162,24 +162,22 @@ export function buildHijackedMap(): MapData {
   bowNose.position.set(0, -1, -66);
   root.add(bowNose);
 
-  // Main Deck Surface (Teak wood): Y = -0.4 to 0 (top face at Y=0)
-  // Bow Deck (Z: -54 to -24, W: 24)
-  createSolidBox(24, 0.4, 30, 0, -0.4, -39, matTeakDeck, { renderOrder: 0 });
+  // Main Deck Surface (Teak wood): perfectly seamless, non-overlapping floor sections
+  // Top face of all main deck sections is at exactly Y = 0.0
+  // 1. Bow Deck (Z: -54 to -22, full width 24.4m)
+  createSolidBox(24.4, 0.4, 32, 0, -0.4, -38, matTeakDeck, { renderOrder: 0 });
 
-  // Starboard Walkway (X: 8.5 to 12, Z: -24 to +24) - mutually exclusive with main deck
-  createSolidBox(3.7, 0.4, 52, 10.25, -0.4, 0, matTeakDeck, { renderOrder: 0 });
+  // 2. Starboard Walkway (X: 8.5 to 12.2, Z: -22 to +22)
+  createSolidBox(3.7, 0.4, 44, 10.35, -0.4, 0, matTeakDeck, { renderOrder: 0 });
 
-  // Port Walkway (X: -12 to -8.5, Z: -24 to +24) - mutually exclusive with main deck
-  createSolidBox(3.7, 0.4, 52, -10.25, -0.4, 0, matTeakDeck, { renderOrder: 0 });
+  // 3. Port Walkway (X: -12.2 to -8.5, Z: -22 to +22)
+  createSolidBox(3.7, 0.4, 44, -10.35, -0.4, 0, matTeakDeck, { renderOrder: 0 });
 
-  // Stern Deck (Z: 24 to 54, W: 24) - mutually exclusive with main deck
-  createSolidBox(24, 0.4, 30, 0, -0.4, 39, matTeakDeck, { renderOrder: 0 });
+  // 4. Ground Floor Cabin Interior Floor (X: -8.5 to 8.5, Z: -22 to +22)
+  createSolidBox(17.0, 0.4, 44, 0, -0.4, 0, matTeakDeck, { renderOrder: 0 });
 
-  // Ground Floor Cabin Floor (inside walls) - mutually exclusive with main deck
-  createSolidBox(16.8, 0.4, 43.8, 0, -0.395, 0, matTeakDeck, { renderOrder: 0 });
-
-  // Main Deck Floor boundary colliders (fall protection & ground) - slightly below floor to avoid interference
-  addCollider(-12, -0.5, -55, 12, -0.01, 55);
+  // 5. Stern Deck (Z: 22 to 54, full width 24.4m)
+  createSolidBox(24.4, 0.4, 32, 0, -0.4, 38, matTeakDeck, { renderOrder: 0 });
 
   // Exterior Bulwark / Edge Railings (prevent falling into ocean)
   // Left Railing (Port)
@@ -194,22 +192,22 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // 2. BOW (FORWARD DECK) - HELIPAD & COVER
   // ==========================================
-  // Helipad platform (slightly raised disc/square) - top at Y=0.15, base at Y=0.005 to avoid Z-fighting with deck
-  const helipadBase = createSolidBox(15, 0.15, 15, 0, 0.005, -41, matHelipadGray);
-  // Helipad Yellow Circle - raised slightly above helipad surface to prevent Z-fighting with GPU polygon offset
+  // Helipad platform (top at Y = 0.15, resting cleanly on deck at Y = 0.0)
+  const helipadBase = createSolidBox(15, 0.15, 15, 0, 0.0, -41, matHelipadGray);
+  // Helipad Yellow Circle - raised slightly above helipad surface
   const heliRingGeo = new THREE.RingGeometry(5.2, 5.8, 32);
   heliRingGeo.rotateX(-Math.PI / 2);
   const heliRing = new THREE.Mesh(heliRingGeo, matHelipadYellow);
-  heliRing.position.set(0, 0.17, -41);
+  heliRing.position.set(0, 0.155, -41);
   heliRing.renderOrder = 1;
   root.add(heliRing);
 
-  // Helipad 'H' letter - raised above ring
-  const hBar1 = createSolidBox(0.6, 0.05, 4.4, -1.6, 0.20, -41, matHelipadYellow, { noCollider: true });
+  // Helipad 'H' letter - resting cleanly on top of helipad
+  const hBar1 = createSolidBox(0.6, 0.02, 4.4, -1.6, 0.156, -41, matHelipadYellow, { noCollider: true });
   hBar1.renderOrder = 2;
-  const hBar2 = createSolidBox(0.6, 0.05, 4.4, 1.6, 0.20, -41, matHelipadYellow, { noCollider: true });
+  const hBar2 = createSolidBox(0.6, 0.02, 4.4, 1.6, 0.156, -41, matHelipadYellow, { noCollider: true });
   hBar2.renderOrder = 2;
-  const hCross = createSolidBox(3.2, 0.05, 0.6, 0, 0.20, -41, matHelipadYellow, { noCollider: true });
+  const hCross = createSolidBox(3.2, 0.02, 0.6, 0, 0.156, -41, matHelipadYellow, { noCollider: true });
   hCross.renderOrder = 2;
 
   // Helipad safety crates & equipment
@@ -229,8 +227,8 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // Cabin Dimensions: W: 17, L: 44 (Z: -22 to +22)
   // --- GROUND FLOOR (Y: 0 to 4.2) ---
-  // Ground floor ceiling / Upper floor deck: Y = 4.2 (top at Y=4.4) - mutually exclusive
-  createSolidBox(17, 0.4, 44, 0, 4.205, 0, matTeakDeck);
+  // Ground floor ceiling / Upper floor deck: Y = 4.2 (thickness 0.4, top face at Y = 4.6)
+  createSolidBox(17, 0.4, 44, 0, 4.2, 0, matTeakDeck);
 
   // Front Wall of Ground Cabin (with central doorway)
   createSolidBox(6.5, 4.2, 0.4, -5.25, 0, -22, matHullWhite);
@@ -293,39 +291,39 @@ export function buildHijackedMap(): MapData {
   createSolidBox(0.4, 2.2, 0.4, 8.5, 0, 19, matHullWhite);
   createSolidBox(2.0, 0.4, 0.4, 8.5, 2.2, 18, matHullWhite); // lintel
 
-  // --- UPPER FLOOR (Y: 4.401 to 8.4) ---
-  // Roof / Upper Deck: Y = 8.2 - mutually exclusive
-  createSolidBox(15, 0.4, 34, 0, 8.208, 0, matHullWhite);
+  // --- UPPER FLOOR (Y: 4.6 to 8.2) ---
+  // Roof / Upper Deck: Y = 8.2
+  createSolidBox(15, 0.4, 34, 0, 8.2, 0, matHullWhite);
 
-  // Upper Bridge Cabin Walls - start at Y=4.401 (slightly above ground floor ceiling top at Y=4.4 to prevent Z-fighting)
-  createSolidBox(14, 4.0, 0.4, 0, 4.401, -16, matGlassTinted, { renderOrder: 1 }); // Front observation bridge glass
-  createSolidBox(14, 4.0, 0.4, 0, 4.401, 16, matGlassTinted, { renderOrder: 1 }); // Rear observation glass
+  // Upper Bridge Cabin Walls - start at Y=4.6 (top of upper deck slab)
+  createSolidBox(14, 3.6, 0.4, 0, 4.6, -16, matGlassTinted, { renderOrder: 1 }); // Front observation bridge glass
+  createSolidBox(14, 3.6, 0.4, 0, 4.6, 16, matGlassTinted, { renderOrder: 1 }); // Rear observation glass
 
   // Port side upper wall (X = -7) with doorways at stairs (Z = -18, 18)
-  createSolidBox(0.4, 4.0, 10, -7.0, 4.401, -21, matHullWhite); // Z: -26 to -16
-  createSolidBox(0.4, 4.0, 6, -7.0, 4.401, -13, matHullWhite);  // Z: -16 to -10 (doorway gap at -18 to -14)
-  createSolidBox(0.4, 4.0, 10, -7.0, 4.401, -3, matHullWhite);   // Z: -8 to 2
-  createSolidBox(0.4, 4.0, 6, -7.0, 4.401, 7, matHullWhite);     // Z: 4 to 10 (doorway gap at 14 to 18)
-  createSolidBox(0.4, 4.0, 10, -7.0, 4.401, 17, matHullWhite);   // Z: 12 to 22
+  createSolidBox(0.4, 3.6, 10, -7.0, 4.6, -21, matHullWhite); // Z: -26 to -16
+  createSolidBox(0.4, 3.6, 6, -7.0, 4.6, -13, matHullWhite);  // Z: -16 to -10 (doorway gap at -18 to -14)
+  createSolidBox(0.4, 3.6, 10, -7.0, 4.6, -3, matHullWhite);   // Z: -8 to 2
+  createSolidBox(0.4, 3.6, 6, -7.0, 4.6, 7, matHullWhite);     // Z: 4 to 10 (doorway gap at 14 to 18)
+  createSolidBox(0.4, 3.6, 10, -7.0, 4.6, 17, matHullWhite);   // Z: 12 to 22
 
   // Starboard side upper wall (X = 7) with doorways at stairs (Z = -18, 18)
-  createSolidBox(0.4, 4.0, 10, 7.0, 4.401, -21, matHullWhite);
-  createSolidBox(0.4, 4.0, 6, 7.0, 4.401, -13, matHullWhite);
-  createSolidBox(0.4, 4.0, 10, 7.0, 4.401, -3, matHullWhite);
-  createSolidBox(0.4, 4.0, 6, 7.0, 4.401, 7, matHullWhite);
-  createSolidBox(0.4, 4.0, 10, 7.0, 4.401, 17, matHullWhite);
+  createSolidBox(0.4, 3.6, 10, 7.0, 4.6, -21, matHullWhite);
+  createSolidBox(0.4, 3.6, 6, 7.0, 4.6, -13, matHullWhite);
+  createSolidBox(0.4, 3.6, 10, 7.0, 4.6, -3, matHullWhite);
+  createSolidBox(0.4, 3.6, 6, 7.0, 4.6, 7, matHullWhite);
+  createSolidBox(0.4, 3.6, 10, 7.0, 4.6, 17, matHullWhite);
 
   // Doorway lintels for upper floor port side
-  createSolidBox(0.4, 0.4, 4.0, -7.0, 8.2, -18, matHullWhite); // front stair lintel
-  createSolidBox(0.4, 0.4, 4.0, -7.0, 8.2, 18, matHullWhite);  // rear stair lintel
+  createSolidBox(0.4, 0.4, 4.0, -7.0, 7.8, -18, matHullWhite); // front stair lintel
+  createSolidBox(0.4, 0.4, 4.0, -7.0, 7.8, 18, matHullWhite);  // rear stair lintel
 
   // Doorway lintels for upper floor starboard side
-  createSolidBox(0.4, 0.4, 4.0, 7.0, 8.2, -18, matHullWhite);
-  createSolidBox(0.4, 0.4, 4.0, 7.0, 8.2, 18, matHullWhite);
+  createSolidBox(0.4, 0.4, 4.0, 7.0, 7.8, -18, matHullWhite);
+  createSolidBox(0.4, 0.4, 4.0, 7.0, 7.8, 18, matHullWhite);
 
-  // Upper Catwalk Railings - aligned with upper walls at Y=4.401
-  createSolidBox(0.3, 1.1, 42, -8.3, 4.401, 0, matChromeRailing);
-  createSolidBox(0.3, 1.1, 42, 8.3, 4.401, 0, matChromeRailing);
+  // Upper Catwalk Railings - aligned with upper deck at Y=4.6
+  createSolidBox(0.3, 1.1, 42, -8.3, 4.6, 0, matChromeRailing);
+  createSolidBox(0.3, 1.1, 42, 8.3, 4.6, 0, matChromeRailing);
 
   // Roof Radar Mast & Satellite Domes
   const mastGeo = new THREE.CylinderGeometry(0.15, 0.25, 4.5, 8);
@@ -351,11 +349,10 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // 4. THE ICONIC UNDERGROUND FLANK TUNNEL
   // ==========================================
-  // Flank Tunnel Floor: Y = -3.2 (Z: -28 to +28, W: 4.8) - cleared of hull penetration
+  // Flank Tunnel Floor: Y = -3.4 (top at Y = -3.1, W: 5.0, D: 56)
   createSolidBox(5.0, 0.3, 56, 0, -3.4, 0, matTunnelMetal);
-  addCollider(-2.5, -3.5, -28, 2.5, -3.1, 28);
 
-  // Tunnel Left & Right Walls - cleared of hull penetration
+  // Tunnel Left & Right Walls
   createSolidBox(0.4, 3.4, 56, -2.6, -3.2, 0, matDarkCarbon);
   createSolidBox(0.4, 3.4, 56, 2.6, -3.2, 0, matDarkCarbon);
 
