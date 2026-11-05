@@ -224,7 +224,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-black font-sans select-none">
+    <div className="relative w-screen h-screen overflow-hidden bg-transparent font-sans select-none">
       {/* Isolated Three.js WebGL Mount Container */}
       <div ref={mountRef} className="absolute inset-0 w-full h-full z-0" />
 
