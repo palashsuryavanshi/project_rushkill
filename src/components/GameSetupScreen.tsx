@@ -34,7 +34,7 @@ const MAP_OPTIONS: MapOption[] = [
     id: 'hijacked',
     name: 'Hijacked',
     subtitle: 'Luxury Superyacht Arena',
-    description: 'Multi-deck superyacht with open helipad, 2-story luxury salon, and underground sub-deck flank tunnels.',
+    description: 'Multi-deck superyacht with open helipad, 2-story luxury salon, and expansive upper bridge deck.',
     isAvailable: true,
     tag: 'ACTIVE MAP',
   },

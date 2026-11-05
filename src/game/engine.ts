@@ -348,8 +348,8 @@ export class GameEngine {
     const onMouseDown = (e: MouseEvent) => {
       if (this.isTitleScreen) return;
 
+      // Pointer lock is toggled exclusively with the F key — clicks while unlocked do nothing
       if (!this.isPointerLocked) {
-        this.requestPointerLock();
         return;
       }
 

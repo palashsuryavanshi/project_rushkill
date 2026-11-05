@@ -817,7 +817,7 @@ export function updateBotAI(
         const upperWp = wp.neighbors.find((n) => n.startsWith('upper') || n === 'bow_heli');
         if (upperWp) nextId = upperWp;
       } else if (bot.personality === 'flanker') {
-        const flankWp = wp.neighbors.find((n) => n.startsWith('tunnel') || n.startsWith('port') || n.startsWith('star'));
+        const flankWp = wp.neighbors.find((n) => n.startsWith('port') || n.startsWith('star'));
         if (flankWp) nextId = flankWp;
       }
 

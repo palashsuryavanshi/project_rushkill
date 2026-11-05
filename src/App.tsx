@@ -165,7 +165,7 @@ export default function App() {
     };
   }, [engineRetryKey]);
 
-  // Pause / Resume Keyboard listener
+  // Pause / Resume / Mouse Lock Keyboard listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Escape' || e.code === 'KeyP') {
@@ -177,10 +177,18 @@ export default function App() {
           engineRef.current?.requestPointerLock(false);
         }
       }
+      // F toggles mouse lock during gameplay (nothing else does — no click-to-lock)
+      if (e.code === 'KeyF' && gameState === 'playing') {
+        if (isPointerLocked) {
+          engineRef.current?.exitPointerLock();
+        } else {
+          engineRef.current?.requestPointerLock(true);
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState]);
+  }, [gameState, isPointerLocked]);
 
   // Actions
   const handleDeploy = useCallback(() => {
@@ -281,18 +289,15 @@ export default function App() {
         />
       )}
 
-      {/* Click To Lock Mouse Prompt (Floating non-blocking banner when pointer is unlocked) */}
+      {/* Mouse Lock Hint (Non-interactive — pointer lock toggles ONLY with the F key) */}
       {gameState === 'playing' && !isPointerLocked && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none animate-in fade-in duration-200">
-          <button
-            onClick={() => engineRef.current?.requestPointerLock(true)}
-            className="bg-slate-950/90 hover:bg-slate-900 border border-amber-400/80 px-5 py-2 rounded-xl shadow-2xl flex items-center gap-2.5 pointer-events-auto cursor-pointer transition-colors"
-          >
+          <div className="bg-slate-950/90 border border-amber-400/80 px-5 py-2 rounded-xl shadow-2xl flex items-center gap-2.5">
             <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
             <span className="font-mono text-xs font-bold text-white tracking-widest uppercase">
-              CLICK TO LOCK MOUSE & AIM
+              PRESS F TO LOCK MOUSE
             </span>
-          </button>
+          </div>
         </div>
       )}
 

@@ -181,10 +181,10 @@ export const HUD: React.FC<HUDProps> = ({
             </div>
             {/* Superyacht Top-Down Wireframe */}
             <div className="relative w-full h-36 bg-slate-900/60 rounded-lg border border-slate-800 flex items-center justify-center">
-              {/* Yacht Hull Silhouette */}
-              <div className="absolute w-16 h-32 border border-slate-600 rounded-t-full rounded-b-md bg-slate-800/40" />
+              {/* Yacht Hull Silhouette (proportional to 24.4m x 110m footprint) */}
+              <div className="absolute w-8 h-32 border border-slate-600 rounded-t-full rounded-b-md bg-slate-800/40" />
               {/* Central Cabin Box */}
-              <div className="absolute w-10 h-14 border border-amber-500/40 bg-amber-500/10 rounded-sm" />
+              <div className="absolute w-6 h-16 border border-amber-500/40 bg-amber-500/10 rounded-sm" />
               {/* Helipad 'H' */}
               <div className="absolute top-3 w-6 h-6 rounded-full border border-yellow-400/50 flex items-center justify-center text-[7px] font-bold text-yellow-400">
                 H
@@ -207,17 +207,14 @@ export const HUD: React.FC<HUDProps> = ({
                 );
               })}
 
-              {/* Player Arrow */}
+              {/* Player Dot */}
               <div
-                className="absolute w-3 h-3 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center z-10"
+                className="absolute w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_6px_cyan] -translate-x-1/2 -translate-y-1/2 z-10 border border-white/60"
                 style={{
                   left: `${50 + (minimapData.playerPos.x / 26) * 40}%`,
                   top: `${50 + (minimapData.playerPos.z / 110) * 80}%`,
-                  transform: `translate(-50%, -50%) rotate(${minimapData.playerPos.angle}rad)`,
                 }}
-              >
-                <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[8px] border-b-cyan-400 shadow-[0_0_6px_cyan]" />
-              </div>
+              />
             </div>
           </div>
         )}

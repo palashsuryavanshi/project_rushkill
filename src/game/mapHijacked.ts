@@ -9,7 +9,7 @@ export interface WaypointNode {
   id: string;
   pos: THREE.Vector3;
   neighbors: string[];
-  area: 'bow' | 'midship' | 'stern' | 'tunnel' | 'upper';
+  area: 'bow' | 'midship' | 'stern' | 'upper';
 }
 
 export interface MapData {
@@ -228,7 +228,16 @@ export function buildHijackedMap(): MapData {
   // Cabin Dimensions: W: 17, L: 44 (Z: -22 to +22)
   // --- GROUND FLOOR (Y: 0 to 4.2) ---
   // Ground floor ceiling / Upper floor deck: Y = 4.2 (thickness 0.4, top face at Y = 4.6)
-  createSolidBox(17, 0.4, 44, 0, 4.2, 0, matTeakDeck);
+  // Upper floor deck slab: built from boxes with two stairwell openings so stairs exit onto the upper floor
+  // Opening A (front stairs, x=5.5): X 4.3..6.7, Z -18.4..-8.8
+  // Opening B (rear stairs, x=-5.5): X -6.7..-4.3, Z 8.8..18.4
+  createSolidBox(17, 0.4, 3.6, 0, 4.2, -20.2, matTeakDeck); // front full-width strip (Z -22..-18.4)
+  createSolidBox(17, 0.4, 3.6, 0, 4.2, 20.2, matTeakDeck); // rear full-width strip (Z 18.4..22)
+  createSolidBox(1.8, 0.4, 36.8, -7.6, 4.2, 0, matTeakDeck); // port edge strip (X -8.5..-6.7, Z -18.4..18.4)
+  createSolidBox(1.8, 0.4, 36.8, 7.6, 4.2, 0, matTeakDeck); // starboard edge strip (X 6.7..8.5, Z -18.4..18.4)
+  createSolidBox(8.6, 0.4, 36.8, 0, 4.2, 0, matTeakDeck); // middle strip (X -4.3..4.3, Z -18.4..18.4)
+  createSolidBox(2.4, 0.4, 27.2, -5.5, 4.2, -4.8, matTeakDeck); // under front opening approach (X -6.7..-4.3, Z -18.4..8.8)
+  createSolidBox(2.4, 0.4, 27.2, 5.5, 4.2, 4.8, matTeakDeck); // under rear opening approach (X 4.3..6.7, Z -8.8..18.4)
 
   // Front Wall of Ground Cabin (with central doorway)
   createSolidBox(6.5, 4.2, 0.4, -5.25, 0, -22, matHullWhite);
@@ -374,19 +383,9 @@ export function buildHijackedMap(): MapData {
     root.add(pLight);
   });
 
-  // Tunnel Ramps / Ladders up to Bow (Z: -28 to -23)
-  for (let r = 0; r < 6; r++) {
-    const ry = -3.2 + r * 0.55;
-    const rz = -28 + r * 0.9;
-    createSolidBox(4.6, 0.55, 0.9, 0, ry, rz, matTunnelMetal);
-  }
-
-  // Tunnel Ramps / Ladders up to Stern (Z: 23 to 28)
-  for (let r = 0; r < 6; r++) {
-    const ry = -3.2 + r * 0.55;
-    const rz = 28 - r * 0.9;
-    createSolidBox(4.6, 0.55, 0.9, 0, ry, rz, matTunnelMetal);
-  }
+  // Tunnel sealed off from gameplay: solid bulkheads at both ends (below-deck area is not playable)
+  createSolidBox(5.0, 3.4, 0.5, 0, -3.4, -27.25, matTunnelMetal);
+  createSolidBox(5.0, 3.4, 0.5, 0, -3.4, 27.25, matTunnelMetal);
 
   // ==========================================
   // 5. STERN (REAR AFT DECK) - JACUZZI & LOUNGE
@@ -501,7 +500,6 @@ export function buildHijackedMap(): MapData {
     new THREE.Vector3(10.2, 0.1, -18), // Starboard walkway north
     new THREE.Vector3(-10.2, 0.1, 18), // Port walkway south
     new THREE.Vector3(0, 4.8, 0), // Upper bridge deck
-    new THREE.Vector3(0, -3.0, 0), // Flank tunnel center
     new THREE.Vector3(5.5, 0.1, 8), // Ground cabin dining
     new THREE.Vector3(-5.5, 0.1, -8), // Ground cabin lounge
   ];
@@ -512,12 +510,7 @@ export function buildHijackedMap(): MapData {
     { id: 'bow_heli', pos: new THREE.Vector3(0, 0.1, -41), neighbors: ['bow_stairs', 'bow_port', 'bow_star'], area: 'bow' },
     { id: 'bow_port', pos: new THREE.Vector3(-6, 0.1, -30), neighbors: ['bow_heli', 'port_north', 'bow_stairs'], area: 'bow' },
     { id: 'bow_star', pos: new THREE.Vector3(6, 0.1, -30), neighbors: ['bow_heli', 'star_north', 'bow_stairs'], area: 'bow' },
-    { id: 'bow_stairs', pos: new THREE.Vector3(0, 0.1, -26), neighbors: ['bow_heli', 'tunnel_north', 'cabin_f_door'], area: 'bow' },
-
-    // Tunnel
-    { id: 'tunnel_north', pos: new THREE.Vector3(0, -3.1, -22), neighbors: ['bow_stairs', 'tunnel_mid'], area: 'tunnel' },
-    { id: 'tunnel_mid', pos: new THREE.Vector3(0, -3.1, 0), neighbors: ['tunnel_north', 'tunnel_south'], area: 'tunnel' },
-    { id: 'tunnel_south', pos: new THREE.Vector3(0, -3.1, 22), neighbors: ['tunnel_mid', 'stern_stairs'], area: 'tunnel' },
+    { id: 'bow_stairs', pos: new THREE.Vector3(0, 0.1, -26), neighbors: ['bow_heli', 'cabin_f_door'], area: 'bow' },
 
     // Port Walkway
     { id: 'port_north', pos: new THREE.Vector3(-10.2, 0.1, -16), neighbors: ['bow_port', 'port_mid', 'cabin_port_door'], area: 'midship' },
@@ -542,7 +535,7 @@ export function buildHijackedMap(): MapData {
     { id: 'upper_rear', pos: new THREE.Vector3(0, 4.8, 6), neighbors: ['upper_bridge'], area: 'upper' },
 
     // Stern
-    { id: 'stern_stairs', pos: new THREE.Vector3(0, 0.1, 26), neighbors: ['cabin_r_door', 'tunnel_south', 'stern_jacuzzi'], area: 'stern' },
+    { id: 'stern_stairs', pos: new THREE.Vector3(0, 0.1, 26), neighbors: ['cabin_r_door', 'stern_jacuzzi'], area: 'stern' },
     { id: 'stern_jacuzzi', pos: new THREE.Vector3(0, 0.1, 38), neighbors: ['stern_stairs', 'stern_port', 'stern_star', 'stern_back'], area: 'stern' },
     { id: 'stern_port', pos: new THREE.Vector3(-6, 0.1, 32), neighbors: ['port_south', 'stern_jacuzzi'], area: 'stern' },
     { id: 'stern_star', pos: new THREE.Vector3(6, 0.1, 32), neighbors: ['star_south', 'stern_jacuzzi'], area: 'stern' },
