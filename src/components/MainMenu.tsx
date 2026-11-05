@@ -37,7 +37,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col justify-between p-6 pointer-events-auto bg-gradient-to-t from-black/85 via-black/25 to-black/60 select-none">
+    <div className="fixed inset-0 z-40 flex flex-col justify-between p-6 pointer-events-auto bg-gradient-to-t from-black/85 via-black/25 to-transparent select-none">
       {/* Top Header */}
       <div className="flex items-start justify-between">
         {/* Custom Inline SVG Title Lockup */}
