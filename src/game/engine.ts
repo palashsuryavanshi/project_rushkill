@@ -567,7 +567,7 @@ export class GameEngine {
 
     // Recoil kick (realistic recoil based on movement and stance)
     const recoilMultiplier = this.isSliding ? 1.3 : 1.0;
-    const moveRecoil = this.playerVel.length() * 0.1;
+    const moveRecoil = this.playerVel.length() * 0.002; // movement-based recoil scaled to weapon class (≈0.024 at full sprint, not 1.2)
     this.recoilPitch += (this.activeWeapon.recoilVertical + moveRecoil) * recoilMultiplier;
     this.recoilYaw += (Math.random() - 0.5) * this.activeWeapon.recoilHorizontal * recoilMultiplier;
 
