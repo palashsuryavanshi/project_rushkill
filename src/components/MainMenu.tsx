@@ -43,7 +43,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
         {/* Custom Inline SVG Title Lockup */}
         <div className="flex items-center gap-4">
           {/* Custom Logo */}
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl shadow-amber-500/40 border border-amber-300 overflow-hidden">
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl shadow-amber-500/40 border-2 border-amber-300 overflow-hidden">
             <img src="/logo.png" alt="Project Rushkill" className="w-full h-full object-cover" />
           </div>
           <div>
