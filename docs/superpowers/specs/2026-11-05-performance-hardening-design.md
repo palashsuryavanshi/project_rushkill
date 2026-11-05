@@ -57,7 +57,7 @@ Settings tri-state: **Auto / High / Low**. Auto suggests Low when `deviceMemory 
 Mechanical fix of material-`renderOrder` misalignments (renderOrder belongs on meshes) so the warning stops at the source; remove stray `console.warn` / gate behind `import.meta.env.DEV`.
 
 ### 7. FPS readout (verification aid)
-Optional toggle in settings: shows smoothed FPS + frame-time in the corner (rAF delta, ~20 lines). Off by default. This is the acceptance measurement tool, not a shipped product feature.
+Settings toggle showing smoothed FPS + frame-time in the corner (rAF delta, ~20 lines). **On by default** per owner decision; can be hidden in settings. This is the acceptance measurement tool, not a shipped product feature.
 
 ## Verification
 - `npm run build` → compare before/after `dist` sizes and chunk split; confirm tree-shake of removed deps.
