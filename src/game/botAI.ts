@@ -59,6 +59,10 @@ export interface BotState {
   score: number;
   strafeDir: number;
   strafeTimer: number;
+  // Jump mechanics
+  canJump: boolean;
+  jumpCooldown: number;
+  isGrounded: boolean;
   // Ragdoll cubes on death
   debrisGroup: THREE.Group;
   debrisPieces: { mesh: THREE.Mesh; vel: THREE.Vector3; rotVel: THREE.Vector3 }[];
@@ -470,6 +474,9 @@ export function createBot(
     score: 0,
     strafeDir: Math.random() > 0.5 ? 1 : -1,
     strafeTimer: 0.5 + Math.random() * 0.8,
+    canJump: true,
+    jumpCooldown: 0,
+    isGrounded: true,
     debrisGroup,
     debrisPieces,
   };
@@ -709,7 +716,7 @@ export function updateBotAI(
   // Badge icon
   updateAwarenessBadge(bot);
 
-  // 7. TACTICAL MOVEMENT & PATHFINDING
+  // 7. TACTICAL MOVEMENT & PATHFINDING (Improved Physics)
   const wp = waypoints.find((w) => w.id === bot.currentWaypointId) || waypoints[0];
   let moveTarget = wp.pos.clone();
   let moveSpeed = 6.0;
@@ -818,7 +825,7 @@ export function updateBotAI(
     }
   }
 
-  // Calculate horizontal velocity towards moveTarget
+  // Calculate horizontal velocity towards moveTarget (Improved Physics)
   const toTarget = new THREE.Vector3().subVectors(moveTarget, bot.pos);
   toTarget.y = 0;
   const distToTarget = toTarget.length();
@@ -832,20 +839,84 @@ export function updateBotAI(
 
   if (distToTarget > 0.3) {
     toTarget.normalize();
-    bot.velocity.copy(toTarget).multiplyScalar(moveSpeed);
-
+    
+    // Proper physics-based movement with acceleration
+    const acceleration = toTarget.multiplyScalar(moveSpeed * 10.0); // Acceleration
+    bot.velocity.add(acceleration.multiplyScalar(dt));
+    
+    // Apply air resistance
+    bot.velocity.multiplyScalar(0.9);
+    
+    // Add tactical lateral strafing if engaged
     if (bot.awareness === 'engaged') {
-      // Add tactical lateral strafing
       const strafeVec = new THREE.Vector3(-toTarget.z, 0, toTarget.x).multiplyScalar(
         bot.strafeDir * 2.2 * (bot.difficulty === 'elite' ? 1.4 : 1.0)
       );
-      bot.velocity.add(strafeVec);
+      bot.velocity.add(strafeVec.multiplyScalar(dt));
     }
 
-    bot.pos.addScaledVector(bot.velocity, dt);
+    // Limit maximum velocity
+    const maxVelocity = moveSpeed * 1.5;
+    if (bot.velocity.length() > maxVelocity) {
+      bot.velocity.normalize().multiplyScalar(maxVelocity);
+    }
+
+    // Integrate velocity to position
+    bot.pos.add(bot.velocity.clone().multiplyScalar(dt));
   } else {
-    bot.velocity.set(0, 0, 0);
+    // Decelerate when close to target
+    bot.velocity.multiplyScalar(0.8);
+    bot.pos.add(bot.velocity.clone().multiplyScalar(dt));
   }
+
+  // Bot jumping mechanics
+  if (bot.canJump && bot.isGrounded && bot.awareness === 'engaged') {
+    // Jump when near obstacles or to reach higher ground
+    const shouldJump = Math.random() < 0.02; // 2% chance per frame when engaged
+    const nearbyObstacle = colliders.some(c => {
+      const dist = Math.sqrt(
+        Math.pow(bot.pos.x - (c.min.x + c.max.x) / 2, 2) +
+        Math.pow(bot.pos.z - (c.min.z + c.max.z) / 2, 2)
+      );
+      return dist < 3.0 && c.max.y > bot.pos.y + 1.0;
+    });
+
+    if (shouldJump || nearbyObstacle) {
+      bot.velocity.y = 8.0; // Jump velocity
+      bot.isGrounded = false;
+      bot.canJump = false;
+      bot.jumpCooldown = 1.0;
+    }
+  }
+
+  // Update jump cooldown
+  bot.jumpCooldown -= dt;
+  if (bot.jumpCooldown <= 0) {
+    bot.canJump = true;
+  }
+
+  // Apply gravity to bots
+  const gravity = -9.81 * 2.65;
+  bot.velocity.y += gravity * dt;
+
+  // Ground collision for bots
+  let botGrounded = false;
+  for (const c of colliders) {
+    if (
+      bot.pos.x + 0.4 > c.min.x &&
+      bot.pos.x - 0.4 < c.max.x &&
+      bot.pos.z + 0.4 > c.min.z &&
+      bot.pos.z - 0.4 < c.max.z &&
+      bot.pos.y + 1.8 > c.min.y &&
+      bot.pos.y + 1.8 < c.max.y + 0.1
+    ) {
+      botGrounded = true;
+      bot.pos.y = c.max.y - 1.8;
+      bot.velocity.y = 0;
+      break;
+    }
+  }
+  bot.isGrounded = botGrounded;
 
   // 8. HUMAN-LIKE SMOOTH ROTATION & AIMING (NO INSTANT SNAPPING!)
   let desiredYaw = bot.yaw;

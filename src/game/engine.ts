@@ -567,9 +567,11 @@ export class GameEngine {
     const fireInterval = 60 / this.activeWeapon.fireRateRpm;
     this.fireTimer = fireInterval;
 
-    // Recoil kick
-    this.recoilPitch += this.activeWeapon.recoilVertical;
-    this.recoilYaw += (Math.random() - 0.5) * this.activeWeapon.recoilHorizontal;
+    // Recoil kick (realistic recoil based on movement and stance)
+    const recoilMultiplier = this.isSliding ? 1.3 : 1.0;
+    const moveRecoil = this.playerVel.length() * 0.1;
+    this.recoilPitch += (this.activeWeapon.recoilVertical + moveRecoil) * recoilMultiplier;
+    this.recoilYaw += (Math.random() - 0.5) * this.activeWeapon.recoilHorizontal * recoilMultiplier;
 
     // Audio
     sound.playGunshot(this.activeWeapon.soundType);
@@ -597,9 +599,13 @@ export class GameEngine {
     const aimDir = new THREE.Vector3(0, 0, -1);
     aimDir.applyEuler(new THREE.Euler(this.pitch + this.recoilPitch * 0.5, this.yaw + this.recoilYaw * 0.5, 0, 'YXZ'));
 
-    // Apply random spread circle
+    // Apply random spread circle with movement-based spread
+    const movementSpread = this.playerVel.length() * 0.02;
+    const stanceSpread = this.isSliding ? 0.15 : 0.05;
+    const totalSpread = spreadRad + movementSpread + stanceSpread;
+    
     const angle = Math.random() * Math.PI * 2;
-    const r = Math.random() * spreadRad;
+    const r = Math.random() * totalSpread;
     const spreadX = Math.cos(angle) * r;
     const spreadY = Math.sin(angle) * r;
     aimDir.x += spreadX;
@@ -894,7 +900,7 @@ export class GameEngine {
     // Rush Speed Tuning: High mobility, fast strafing, responsive bhop!
     const baseSpeed = this.isAds ? 5.5 : 12.0;
     const accel = this.isGrounded ? 80.0 : 35.0; // Air strafe control
-    const friction = this.isGrounded ? (this.isSliding ? 0.98 : 0.82) : 0.98;
+    const friction = this.isGrounded ? (this.isSliding ? 0.88 : 0.82) : 0.98; // More realistic sliding friction
 
     if (inputDir.lengthSq() > 0 && !this.isSliding) {
       this.playerVel.x += moveDir.x * accel * dt;
@@ -913,8 +919,9 @@ export class GameEngine {
       this.playerVel.z = (this.playerVel.z / hSpeed) * maxSpeed;
     }
 
-    // Gravity
-    this.playerVel.y -= 26.0 * dt;
+    // Gravity (realistic physics constant scaled for game world)
+    const gravity = -9.81 * 2.65; // Realistic gravity scaled for game world
+    this.playerVel.y += gravity * dt;
 
     // Coyote & Jump Buffering
     if (this.isGrounded) this.coyoteTimer = 0.1;
@@ -929,10 +936,12 @@ export class GameEngine {
       this.jumpBufferTimer = 0;
       sound.playJump();
 
-      // Bunny-hop boost if timed right during a slide
+      // Bunny-hop boost if timed right during a slide (reduced exploit potential)
       if (this.isSliding) {
-        this.playerVel.x *= 1.25;
-        this.playerVel.z *= 1.25;
+        const boostFactor = 1.1; // Reduced, more realistic boost
+        const momentumConservation = 0.8;
+        this.playerVel.x = (this.playerVel.x * momentumConservation) + (this.playerVel.x * boostFactor);
+        this.playerVel.z = (this.playerVel.z * momentumConservation) + (this.playerVel.z * boostFactor);
         this.isSliding = false;
       }
     }
@@ -972,6 +981,7 @@ export class GameEngine {
 
     // Floor check: Ground at Y = 0 (main deck), Y = 4.2 (upper deck), Y = -3.2 (tunnel)
     let groundY = -999;
+    let slopeDetected = false;
 
     for (const c of this.mapData.colliders) {
       // Horizontal AABB overlap check
@@ -985,36 +995,67 @@ export class GameEngine {
         if (this.playerPos.y >= c.max.y - 0.45 && nextPos.y <= c.max.y + 0.1) {
           if (c.max.y > groundY) {
             groundY = c.max.y;
+            
+            // Slope detection - check nearby ground height
+            const slopeCheckDistance = 0.3;
+            const forwardCheck = new THREE.Vector3(
+              Math.sin(this.yaw) * slopeCheckDistance,
+              0,
+              Math.cos(this.yaw) * slopeCheckDistance
+            );
+            const checkPos = this.playerPos.clone().add(forwardCheck);
+            const nearbyCollider = this.mapData.colliders.find(coll => 
+              checkPos.x + playerRadius > coll.min.x &&
+              checkPos.x - playerRadius < coll.max.x &&
+              checkPos.z + playerRadius > coll.min.z &&
+              checkPos.z - playerRadius < coll.max.z
+            );
+            
+            if (nearbyCollider && Math.abs(c.max.y - nearbyCollider.max.y) > 0.2) {
+              slopeDetected = true;
+            }
           }
         } else if (nextPos.y < c.max.y && nextPos.y + playerHeight > c.min.y) {
-          // Horizontal Wall collision - push player out
+          // Improved wall collision resolution
           const pushX1 = c.max.x - (nextPos.x - playerRadius);
           const pushX2 = (nextPos.x + playerRadius) - c.min.x;
           const pushZ1 = c.max.z - (nextPos.z - playerRadius);
           const pushZ2 = (nextPos.z + playerRadius) - c.min.z;
           const minPush = Math.min(pushX1, pushX2, pushZ1, pushZ2);
 
+          // Calculate collision normal for proper velocity resolution
+          let pushOut = new THREE.Vector3();
           if (minPush === pushX1) {
             nextPos.x = c.max.x + playerRadius;
-            this.playerVel.x = 0;
+            pushOut.x = pushX1;
+            this.playerVel.x = Math.max(0, this.playerVel.x); // Don't push back into wall
           } else if (minPush === pushX2) {
             nextPos.x = c.min.x - playerRadius;
-            this.playerVel.x = 0;
+            pushOut.x = -pushX2;
+            this.playerVel.x = Math.min(0, this.playerVel.x);
           } else if (minPush === pushZ1) {
             nextPos.z = c.max.z + playerRadius;
-            this.playerVel.z = 0;
+            pushOut.z = pushZ1;
+            this.playerVel.z = Math.max(0, this.playerVel.z);
           } else if (minPush === pushZ2) {
             nextPos.z = c.min.z - playerRadius;
-            this.playerVel.z = 0;
+            pushOut.z = -pushZ2;
+            this.playerVel.z = Math.min(0, this.playerVel.z);
           }
         }
       }
     }
 
+    // Ground collision with slope detection
     if (groundY > -900 && nextPos.y <= groundY + 0.05) {
-      nextPos.y = groundY;
-      this.playerVel.y = 0;
-      this.isGrounded = true;
+      if (!slopeDetected) {
+        nextPos.y = groundY;
+        this.playerVel.y = 0;
+        this.isGrounded = true;
+      } else {
+        // On a slope - reduce ground contact
+        this.isGrounded = false;
+      }
     } else {
       this.isGrounded = false;
     }

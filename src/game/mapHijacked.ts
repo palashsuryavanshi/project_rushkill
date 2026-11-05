@@ -163,8 +163,8 @@ export function buildHijackedMap(): MapData {
   // Stern Deck (Z: 24 to 54, W: 24)
   createSolidBox(24, 0.4, 30, 0, -0.4, 39, matTeakDeck);
 
-  // Ground Floor Cabin Floor (inside walls) - flush with main deck at Y=-0.4 to 0, slightly raised to prevent Z-fighting
-  createSolidBox(16.8, 0.4, 43.8, 0, -0.399, 0, matTeakDeck);
+  // Ground Floor Cabin Floor (inside walls) - flush with main deck at Y=-0.4 to 0, raised to prevent Z-fighting
+  createSolidBox(16.8, 0.4, 43.8, 0, -0.398, 0, matTeakDeck);
 
   // Main Deck Floor boundary colliders (fall protection & ground)
   addCollider(-12, -0.5, -55, 12, 0.01, 55);
@@ -182,8 +182,8 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // 2. BOW (FORWARD DECK) - HELIPAD & COVER
   // ==========================================
-  // Helipad platform (slightly raised disc/square) - top at Y=0.15, base at Y=0.001 to avoid Z-fighting with deck
-  const helipadBase = createSolidBox(15, 0.15, 15, 0, 0.001, -41, matHelipadGray);
+  // Helipad platform (slightly raised disc/square) - top at Y=0.15, base at Y=0.002 to avoid Z-fighting with deck
+  const helipadBase = createSolidBox(15, 0.15, 15, 0, 0.002, -41, matHelipadGray);
   // Helipad Yellow Circle - raised slightly above helipad surface to prevent Z-fighting
   const heliRingGeo = new THREE.RingGeometry(5.2, 5.8, 32);
   heliRingGeo.rotateX(-Math.PI / 2);
@@ -218,7 +218,7 @@ export function buildHijackedMap(): MapData {
   // Cabin Dimensions: W: 17, L: 44 (Z: -22 to +22)
   // --- GROUND FLOOR (Y: 0 to 4.2) ---
   // Ground floor ceiling / Upper floor deck: Y = 4.2 (top at Y=4.4)
-  createSolidBox(17, 0.4, 44, 0, 4.2, 0, matTeakDeck);
+  createSolidBox(17, 0.4, 44, 0, 4.201, 0, matTeakDeck);
 
   // Front Wall of Ground Cabin (with central doorway)
   createSolidBox(6.5, 4.2, 0.4, -5.25, 0, -22, matHullWhite);
@@ -283,7 +283,7 @@ export function buildHijackedMap(): MapData {
 
   // --- UPPER FLOOR (Y: 4.401 to 8.4) ---
   // Roof / Upper Deck: Y = 8.2
-  createSolidBox(15, 0.4, 34, 0, 8.2, 0, matHullWhite);
+  createSolidBox(15, 0.4, 34, 0, 8.202, 0, matHullWhite);
 
   // Upper Bridge Cabin Walls - start at Y=4.401 (slightly above ground floor ceiling top at Y=4.4 to prevent Z-fighting)
   createSolidBox(14, 4.0, 0.4, 0, 4.401, -16, matGlassTinted, { renderOrder: 1 }); // Front observation bridge glass
