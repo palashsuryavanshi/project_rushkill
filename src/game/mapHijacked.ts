@@ -253,12 +253,12 @@ export function buildHijackedMap(): MapData {
   // Port Side Wall (X: -8.5) with large tinted glass windows & side doors
   createSolidBox(0.4, 4.2, 14, -8.5, 0, -15, matHullWhite);
   createSolidBox(0.4, 4.2, 14, -8.5, 0, 15, matHullWhite);
-  createSolidBox(0.4, 3.8, 16, -8.5, 0.2, 0, matGlassTinted, { renderOrder: 1 }); // mid glass section
+  createSolidBox(0.4, 3.8, 16, -8.5, 0.2, 0, matGlassTinted, { renderOrder: 1, noCollider: true }); // mid glass section (no collider: walkthroughable & shootthroughable)
 
   // Starboard Side Wall (X: 8.5) with windows
   createSolidBox(0.4, 4.2, 14, 8.5, 0, -15, matHullWhite);
   createSolidBox(0.4, 4.2, 14, 8.5, 0, 15, matHullWhite);
-  createSolidBox(0.4, 3.8, 16, 8.5, 0.2, 0, matGlassTinted, { renderOrder: 1 });
+  createSolidBox(0.4, 3.8, 16, 8.5, 0.2, 0, matGlassTinted, { renderOrder: 1, noCollider: true });
 
   // Interior Luxury Bar Counter (Z = 0)
   createSolidBox(5.0, 1.2, 1.6, 0, 0, 0, matDarkCarbon);
@@ -306,8 +306,8 @@ export function buildHijackedMap(): MapData {
   createSolidBox(15, 0.4, 34, 0, 8.2, 0, matHullWhite);
 
   // Upper Bridge Cabin Walls - start at Y=4.6 (top of upper deck slab)
-  createSolidBox(14, 3.6, 0.4, 0, 4.6, -16, matGlassTinted, { renderOrder: 1 }); // Front observation bridge glass
-  createSolidBox(14, 3.6, 0.4, 0, 4.6, 16, matGlassTinted, { renderOrder: 1 }); // Rear observation glass
+  createSolidBox(14, 3.6, 0.4, 0, 4.6, -16, matGlassTinted, { renderOrder: 1, noCollider: true }); // Front observation bridge glass
+  createSolidBox(14, 3.6, 0.4, 0, 4.6, 16, matGlassTinted, { renderOrder: 1, noCollider: true }); // Rear observation glass
 
   // Port side upper wall (X = -7) with doorways at stairs (Z = -18, 18)
   createSolidBox(0.4, 3.6, 10, -7.0, 4.6, -21, matHullWhite); // Z: -26 to -16

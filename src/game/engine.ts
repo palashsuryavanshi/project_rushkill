@@ -595,11 +595,11 @@ export class GameEngine {
   private shootPellet(spreadRad: number) {
     // Camera aim direction
     const aimDir = new THREE.Vector3(0, 0, -1);
-    aimDir.applyEuler(new THREE.Euler(this.pitch + this.recoilPitch * 0.5, this.yaw + this.recoilYaw * 0.5, 0, 'YXZ'));
+    aimDir.applyEuler(new THREE.Euler(this.pitch + this.recoilPitch, this.yaw + this.recoilYaw, 0, 'YXZ'));
 
-    // Apply random spread circle with movement-based spread
-    const movementSpread = this.playerVel.length() * 0.02;
-    const stanceSpread = this.isSliding ? 0.15 : 0.05;
+    // Apply random spread circle with movement-based spread (scaled so running doesn't make hitting impossible)
+    const movementSpread = this.playerVel.length() * 0.002;
+    const stanceSpread = this.isSliding ? 0.08 : 0.02;
     const totalSpread = spreadRad + movementSpread + stanceSpread;
     
     const angle = Math.random() * Math.PI * 2;
@@ -611,27 +611,73 @@ export class GameEngine {
     aimDir.normalize();
 
     const rayOrigin = this.camera.position.clone();
-    const raycaster = new THREE.Raycaster(rayOrigin, aimDir, 0.1, 300);
 
-    // Check hit against active bots
+    // Padded, rotation-agnostic AABB hit test (generous hitboxes for reliable hit registration)
+    const rayBox = (origin: THREE.Vector3, dir: THREE.Vector3, min: THREE.Vector3, max: THREE.Vector3): number | null => {
+      let tmin = 0.1; // near clip
+      let tmax = 300; // far clip
+      for (const axis of ['x', 'y', 'z'] as const) {
+        const o = origin[axis];
+        const d = dir[axis];
+        if (Math.abs(d) < 1e-8) {
+          if (o < min[axis] || o > max[axis]) return null;
+        } else {
+          let t1 = (min[axis] - o) / d;
+          let t2 = (max[axis] - o) / d;
+          if (t1 > t2) {
+            const tmp = t1;
+            t1 = t2;
+            t2 = tmp;
+          }
+          tmin = Math.max(tmin, t1);
+          tmax = Math.min(tmax, t2);
+          if (tmin > tmax) return null;
+        }
+      }
+      return tmax >= 0.1 ? tmin : null;
+    };
+
     let closestHitBot: { bot: BotState; isHead: boolean; point: THREE.Vector3; dist: number } | null = null;
     let closestDist = Infinity;
 
     for (const bot of this.bots) {
       if (bot.isDead) continue;
+      const px = bot.pos.x, py = bot.pos.y, pz = bot.pos.z;
 
-      // Raycast against head
-      const headIntersects = raycaster.intersectObject(bot.headMesh);
-      if (headIntersects.length > 0 && headIntersects[0].distance < closestDist) {
-        closestDist = headIntersects[0].distance;
-        closestHitBot = { bot, isHead: true, point: headIntersects[0].point, dist: closestDist };
-      }
+      // Padded body hitbox (~1.2m tall x 1.2m x 1.0m wide — forgiving)
+      const bodyHit = rayBox(
+        rayOrigin, aimDir,
+        new THREE.Vector3(px - 0.6, py + 0.4, pz - 0.5),
+        new THREE.Vector3(px + 0.6, py + 1.65, pz + 0.5)
+      );
+      // Padded head hitbox (0.9m cube — forgiving headshot recognition)
+      const headHit = rayBox(
+        rayOrigin, aimDir,
+        new THREE.Vector3(px - 0.45, py + 1.5, pz - 0.45),
+        new THREE.Vector3(px + 0.45, py + 2.3, pz + 0.45)
+      );
 
-      // Raycast against body
-      const bodyIntersects = raycaster.intersectObject(bot.bodyMesh);
-      if (bodyIntersects.length > 0 && bodyIntersects[0].distance < closestDist) {
-        closestDist = bodyIntersects[0].distance;
-        closestHitBot = { bot, isHead: false, point: bodyIntersects[0].point, dist: closestDist };
+      // Head takes priority in the overlap (neck/shoulder) region
+      if (headHit !== null && (bodyHit === null || headHit <= bodyHit + 0.15)) {
+        if (headHit < closestDist) {
+          closestDist = headHit;
+          closestHitBot = {
+            bot,
+            isHead: true,
+            point: rayOrigin.clone().addScaledVector(aimDir, headHit),
+            dist: headHit,
+          };
+        }
+      } else if (bodyHit !== null) {
+        if (bodyHit < closestDist) {
+          closestDist = bodyHit;
+          closestHitBot = {
+            bot,
+            isHead: false,
+            point: rayOrigin.clone().addScaledVector(aimDir, bodyHit),
+            dist: bodyHit,
+          };
+        }
       }
     }
 
