@@ -102,6 +102,9 @@ export function buildHijackedMap(): MapData {
 
   const matHelipadYellow = new THREE.MeshBasicMaterial({
     color: 0xffcc00,
+    polygonOffset: true,
+    polygonOffsetFactor: -1.5,
+    polygonOffsetUnits: -6.0,
   });
 
   const matJacuzziWater = new THREE.MeshStandardMaterial({
@@ -138,11 +141,18 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // 1. MAIN YACHT HULL & DECKS
   // ==========================================
-  // Lower submerged hull
-  const hullLowerGeo = new THREE.BoxGeometry(26, 6, 110);
-  const hullLower = new THREE.Mesh(hullLowerGeo, matDarkCarbon);
-  hullLower.position.set(0, -3, 0);
-  root.add(hullLower);
+  // Midship hull - split into port and starboard lower bilges to avoid tunnel penetration
+  // Port lower bilge
+  const hullPortGeo = new THREE.BoxGeometry(9.3, 6.5, 110);
+  const hullPort = new THREE.Mesh(hullPortGeo, matDarkCarbon);
+  hullPort.position.set(-7.35, -3.25, 0);
+  root.add(hullPort);
+
+  // Starboard lower bilge
+  const hullStarboardGeo = new THREE.BoxGeometry(9.3, 6.5, 110);
+  const hullStarboard = new THREE.Mesh(hullStarboardGeo, matDarkCarbon);
+  hullStarboard.position.set(7.35, -3.25, 0);
+  root.add(hullStarboard);
 
   // Pointed Bow taper
   const bowNoseGeo = new THREE.ConeGeometry(13, 24, 4);
@@ -156,16 +166,16 @@ export function buildHijackedMap(): MapData {
   // Bow Deck (Z: -54 to -24, W: 24)
   createSolidBox(24, 0.4, 30, 0, -0.4, -39, matTeakDeck, { renderOrder: 0 });
 
-  // Starboard Walkway (X: 8.5 to 12, Z: -24 to +24) - extended to overlap bow/stern seams
+  // Starboard Walkway (X: 8.5 to 12, Z: -24 to +24) - mutually exclusive with main deck
   createSolidBox(3.7, 0.4, 52, 10.25, -0.4, 0, matTeakDeck, { renderOrder: 0 });
 
-  // Port Walkway (X: -12 to -8.5, Z: -24 to +24) - extended to overlap bow/stern seams
+  // Port Walkway (X: -12 to -8.5, Z: -24 to +24) - mutually exclusive with main deck
   createSolidBox(3.7, 0.4, 52, -10.25, -0.4, 0, matTeakDeck, { renderOrder: 0 });
 
-  // Stern Deck (Z: 24 to 54, W: 24)
+  // Stern Deck (Z: 24 to 54, W: 24) - mutually exclusive with main deck
   createSolidBox(24, 0.4, 30, 0, -0.4, 39, matTeakDeck, { renderOrder: 0 });
 
-  // Ground Floor Cabin Floor (inside walls) - flush with main deck at Y=-0.4 to 0, raised to prevent Z-fighting
+  // Ground Floor Cabin Floor (inside walls) - mutually exclusive with main deck
   createSolidBox(16.8, 0.4, 43.8, 0, -0.395, 0, matTeakDeck, { renderOrder: 0 });
 
   // Main Deck Floor boundary colliders (fall protection & ground) - slightly below floor to avoid interference
@@ -186,7 +196,7 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // Helipad platform (slightly raised disc/square) - top at Y=0.15, base at Y=0.005 to avoid Z-fighting with deck
   const helipadBase = createSolidBox(15, 0.15, 15, 0, 0.005, -41, matHelipadGray);
-  // Helipad Yellow Circle - raised slightly above helipad surface to prevent Z-fighting
+  // Helipad Yellow Circle - raised slightly above helipad surface to prevent Z-fighting with GPU polygon offset
   const heliRingGeo = new THREE.RingGeometry(5.2, 5.8, 32);
   heliRingGeo.rotateX(-Math.PI / 2);
   const heliRing = new THREE.Mesh(heliRingGeo, matHelipadYellow);
@@ -219,7 +229,7 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // Cabin Dimensions: W: 17, L: 44 (Z: -22 to +22)
   // --- GROUND FLOOR (Y: 0 to 4.2) ---
-  // Ground floor ceiling / Upper floor deck: Y = 4.2 (top at Y=4.4)
+  // Ground floor ceiling / Upper floor deck: Y = 4.2 (top at Y=4.4) - mutually exclusive
   createSolidBox(17, 0.4, 44, 0, 4.205, 0, matTeakDeck);
 
   // Front Wall of Ground Cabin (with central doorway)
@@ -250,18 +260,18 @@ export function buildHijackedMap(): MapData {
   createSolidBox(3.5, 0.8, 1.4, -4.5, 0, -8, matDarkCarbon);
   createSolidBox(3.5, 0.8, 1.4, -4.5, 0, 8, matDarkCarbon);
 
-  // Stairs connecting Ground Floor to Upper Floor at front (Z = -18) - 8 steps to reach upper floor
-  for (let s = 0; s < 8; s++) {
-    const sy = s * 0.6;
+  // Stairs connecting Ground Floor to Upper Floor at front (Z = -18) - 12 gradual steps
+  for (let s = 0; s < 12; s++) {
+    const sy = s * 0.35;
     const sz = -18 + s * 0.8;
-    createSolidBox(2.4, 0.6, 0.8, 5.5, sy, sz, matDarkCarbon);
+    createSolidBox(2.4, 0.35, 0.8, 5.5, sy, sz, matDarkCarbon);
   }
 
-  // Stairs connecting Ground Floor to Upper Floor at rear (Z = 18) - 8 steps to reach upper floor
-  for (let s = 0; s < 8; s++) {
-    const sy = s * 0.6;
+  // Stairs connecting Ground Floor to Upper Floor at rear (Z = 18) - 12 gradual steps
+  for (let s = 0; s < 12; s++) {
+    const sy = s * 0.35;
     const sz = 18 - s * 0.8;
-    createSolidBox(2.4, 0.6, 0.8, -5.5, sy, sz, matDarkCarbon);
+    createSolidBox(2.4, 0.35, 0.8, -5.5, sy, sz, matDarkCarbon);
   }
 
   // Doorways in Ground Floor side walls at stair locations (Z = -18 and Z = 18)
@@ -284,7 +294,7 @@ export function buildHijackedMap(): MapData {
   createSolidBox(2.0, 0.4, 0.4, 8.5, 2.2, 18, matHullWhite); // lintel
 
   // --- UPPER FLOOR (Y: 4.401 to 8.4) ---
-  // Roof / Upper Deck: Y = 8.2
+  // Roof / Upper Deck: Y = 8.2 - mutually exclusive
   createSolidBox(15, 0.4, 34, 0, 8.208, 0, matHullWhite);
 
   // Upper Bridge Cabin Walls - start at Y=4.401 (slightly above ground floor ceiling top at Y=4.4 to prevent Z-fighting)
@@ -341,11 +351,11 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // 4. THE ICONIC UNDERGROUND FLANK TUNNEL
   // ==========================================
-  // Flank Tunnel Floor: Y = -3.2 (Z: -28 to +28, W: 4.8)
+  // Flank Tunnel Floor: Y = -3.2 (Z: -28 to +28, W: 4.8) - cleared of hull penetration
   createSolidBox(5.0, 0.3, 56, 0, -3.4, 0, matTunnelMetal);
   addCollider(-2.5, -3.5, -28, 2.5, -3.1, 28);
 
-  // Tunnel Left & Right Walls
+  // Tunnel Left & Right Walls - cleared of hull penetration
   createSolidBox(0.4, 3.4, 56, -2.6, -3.2, 0, matDarkCarbon);
   createSolidBox(0.4, 3.4, 56, 2.6, -3.2, 0, matDarkCarbon);
 
@@ -387,7 +397,7 @@ export function buildHijackedMap(): MapData {
   // Raised Jacuzzi Tub at Z = +38
   // Tub rim / surround
   createSolidBox(6.5, 1.2, 6.5, 0, 0, 38, matTeakDeck);
-  // Jacuzzi water surface (Y = 1.0)
+  // Jacuzzi water surface (Y = 1.0) - elevated water plane
   const waterGeo = new THREE.BoxGeometry(5.2, 0.2, 5.2);
   const jacuzziWater = new THREE.Mesh(waterGeo, matJacuzziWater);
   jacuzziWater.position.set(0, 1.05, 38);
