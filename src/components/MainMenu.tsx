@@ -58,7 +58,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 CUSTOM ARSENAL
               </span>
               <span>•</span>
-              <span className="px-2 py-0.5 rounded bg-black/60 border border-emerald-500/40 text-emerald-400">
+              <span className="px-2 py-0.5 rounded bg-black/60 border border-emerald-500/40 text-white">
                 HIJACKED-INSPIRED YACHT MAP
               </span>
             </div>
