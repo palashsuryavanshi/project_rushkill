@@ -58,7 +58,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
                 CUSTOM ARSENAL
               </span>
               <span>•</span>
-              <span className="text-sky-300">HIJACKED-INSPIRED YACHT MAP</span>
+              <span className="text-black">HIJACKED-INSPIRED YACHT MAP</span>
             </div>
           </div>
         </div>
