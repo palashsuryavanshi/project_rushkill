@@ -44,7 +44,8 @@ export function buildHijackedMap(): MapData {
   ): THREE.Mesh {
     const geo = new THREE.BoxGeometry(w, h, d);
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(x, y + h / 2, z);
+    // Embed static meshes 2mm into whatever they sit on so contact faces are never coplanar (eliminates Z-fighting)
+    mesh.position.set(x, y + h / 2 - 0.002, z);
     mesh.castShadow = options?.castShadow ?? true;
     mesh.receiveShadow = options?.receiveShadow ?? true;
     if (options?.renderOrder !== undefined) {
@@ -142,16 +143,16 @@ export function buildHijackedMap(): MapData {
   // 1. MAIN YACHT HULL & DECKS
   // ==========================================
   // Midship hull - split into port and starboard lower bilges, placed strictly below deck (top at Y=-0.4)
-  // Port lower bilge
+  // Port lower bilge (lowered 2mm so its top face is never coplanar with deck slab bottoms)
   const hullPortGeo = new THREE.BoxGeometry(9.3, 6.0, 110);
   const hullPort = new THREE.Mesh(hullPortGeo, matDarkCarbon);
-  hullPort.position.set(-7.35, -3.4, 0);
+  hullPort.position.set(-7.35, -3.402, 0);
   root.add(hullPort);
 
-  // Starboard lower bilge
+  // Starboard lower bilge (lowered 2mm so its top face is never coplanar with deck slab bottoms)
   const hullStarboardGeo = new THREE.BoxGeometry(9.3, 6.0, 110);
   const hullStarboard = new THREE.Mesh(hullStarboardGeo, matDarkCarbon);
-  hullStarboard.position.set(7.35, -3.4, 0);
+  hullStarboard.position.set(7.35, -3.402, 0);
   root.add(hullStarboard);
 
   // Pointed Bow taper
@@ -499,9 +500,9 @@ export function buildHijackedMap(): MapData {
     new THREE.Vector3(0, 0.1, 46), // Stern aft deck (facing north)
     new THREE.Vector3(10.2, 0.1, -18), // Starboard walkway north
     new THREE.Vector3(-10.2, 0.1, 18), // Port walkway south
-    new THREE.Vector3(0, 4.8, 0), // Upper bridge deck
-    new THREE.Vector3(5.5, 0.1, 8), // Ground cabin dining
-    new THREE.Vector3(-5.5, 0.1, -8), // Ground cabin lounge
+    new THREE.Vector3(0, 4.6, 0), // Upper bridge deck (upper slab top at Y = 4.6)
+    new THREE.Vector3(3.0, 0.1, -3.0), // Cabin center-rear (clear of sofas/bar)
+    new THREE.Vector3(-5.5, 0.1, -3.5), // Cabin lounge entrance (clear of furniture)
   ];
 
   // Waypoints for AI navigation
@@ -531,8 +532,8 @@ export function buildHijackedMap(): MapData {
     { id: 'cabin_stairs_up', pos: new THREE.Vector3(5.5, 0.1, -14), neighbors: ['cabin_f_door', 'upper_bridge'], area: 'midship' },
 
     // Upper Bridge Deck
-    { id: 'upper_bridge', pos: new THREE.Vector3(0, 4.8, -6), neighbors: ['cabin_stairs_up', 'upper_rear'], area: 'upper' },
-    { id: 'upper_rear', pos: new THREE.Vector3(0, 4.8, 6), neighbors: ['upper_bridge'], area: 'upper' },
+    { id: 'upper_bridge', pos: new THREE.Vector3(0, 4.6, -6), neighbors: ['cabin_stairs_up', 'upper_rear'], area: 'upper' },
+    { id: 'upper_rear', pos: new THREE.Vector3(0, 4.6, 6), neighbors: ['upper_bridge'], area: 'upper' },
 
     // Stern
     { id: 'stern_stairs', pos: new THREE.Vector3(0, 0.1, 26), neighbors: ['cabin_r_door', 'stern_jacuzzi'], area: 'stern' },

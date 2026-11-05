@@ -41,7 +41,7 @@ export class GameEngine {
   private gunCameraRig: THREE.Group = new THREE.Group();
 
   // Position & Physics
-  public playerPos = new THREE.Vector3(0, 1.6, -45);
+  public playerPos = new THREE.Vector3(0, 0.1, -45);
   public playerVel = new THREE.Vector3();
   private pitch: number = 0;
   private yaw: number = 0;
@@ -481,7 +481,7 @@ export class GameEngine {
   public startMatch(config?: MatchConfig) {
     this.isTitleScreen = false;
     document.body.dataset.state = 'playing';
-    this.playerPos.set(0, 1.6, -45);
+    this.playerPos.set(0, 0.1, -45);
     this.playerVel.set(0, 0, 0);
     this.yaw = Math.PI; // Face down yacht towards center
     this.pitch = 0;
@@ -968,7 +968,7 @@ export class GameEngine {
       this.hp -= 35;
       sound.playHurt();
       // Teleport back to nearest deck spawn
-      this.playerPos.set(0, 1.6, -40);
+      this.playerPos.set(0, 0.1, -40);
       this.playerVel.set(0, 0, 0);
     }
   }
@@ -976,7 +976,7 @@ export class GameEngine {
   private resolveCollisions(nextPos: THREE.Vector3) {
     const playerRadius = 0.45;
     const playerHeight = this.isSliding ? 1.0 : 1.8;
-    const stepHeight = 0.45;
+    const stepHeight = 0.55;
 
     // 1. Detect walkable ground beneath player's horizontal footprint
     let highestGroundY = -999;

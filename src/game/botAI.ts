@@ -916,7 +916,7 @@ export function updateBotAI(
       }
     }
   }
-  if (highestBotGroundY > -900 && bot.pos.y <= highestBotGroundY + 0.15) {
+  if (highestBotGroundY > -900 && bot.pos.y <= highestBotGroundY + 0.5) {
     bot.pos.y = highestBotGroundY;
     bot.velocity.y = 0;
     botGrounded = true;
