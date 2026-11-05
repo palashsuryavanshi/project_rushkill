@@ -1,5 +1,5 @@
 <div align="center">
-<h1>Rushkill : FPS Shooter</h1>
+<h1>Project Rushkill</h1>
 <p><em>Fast-paced 3D browser FPS with arcade-style movement</em></p>
 </div>
 
