@@ -187,7 +187,7 @@ export const LoadoutScreen: React.FC<LoadoutScreenProps> = ({
       {/* Bottom Flat Control Hint Line */}
       <div className="text-center pt-2">
         <p className="text-xs font-mono font-medium tracking-wide text-slate-400 drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
-          WASD Move • Space Jump / Bhop • Shift Slide • Right-Click ADS • Left-Click Shoot • R Reload • F Lock Mouse • Esc Pause
+          WASD Move • Space Jump / Bhop • Shift Slide • Right-Click ADS • Left-Click Shoot • R Reload • Ctrl+F Lock Mouse • Esc Pause
         </p>
       </div>
     </div>

@@ -183,8 +183,9 @@ export default function App() {
           engineRef.current?.requestPointerLock(false);
         }
       }
-      // F toggles mouse lock during gameplay (nothing else does — no click-to-lock)
-      if (e.code === 'KeyF' && gameState === 'playing') {
+      // CTRL + F explicitly toggles mouse lock during gameplay (suppresses browser find-in-page)
+      if (e.ctrlKey && e.code === 'KeyF' && gameState === 'playing') {
+        e.preventDefault();
         if (isPointerLocked) {
           engineRef.current?.exitPointerLock();
         } else {
@@ -312,7 +313,7 @@ export default function App() {
           <div className="bg-slate-950/95 border-2 border-amber-400 px-8 py-4 rounded-2xl shadow-2xl flex flex-col items-center gap-2 animate-pulse">
             <div className="w-3 h-3 rounded-full bg-amber-400" />
             <span className="font-mono text-sm font-black text-white tracking-widest uppercase">
-              PRESS F TO LOCK MOUSE
+              PRESS CTRL+F TO LOCK MOUSE
             </span>
             <span className="text-xs text-slate-400 font-mono">
               (Cursor confined to game window while locked)

@@ -508,19 +508,21 @@ export class GameEngine {
     }
 
     try {
-      // Focus the canvas first — helps pointer lock engage on trackpads/laptops
-      try { this.renderer.domElement.focus(); } catch {}
-      const res = this.renderer.domElement.requestPointerLock();
+      const el = this.renderer.domElement;
+      // Ensure the element is actually attached to the live document.
+      if (el.getRootNode() !== document || !el.isConnected) {
+        console.warn('Pointer lock element not in document; re-attaching.');
+        this.container.appendChild(el);
+      }
+      try { el.focus(); } catch {}
+      const res = el.requestPointerLock();
       if (res && typeof (res as unknown as Promise<void>).catch === 'function') {
         (res as unknown as Promise<void>).catch((err: unknown) => {
-          console.warn('Pointer lock request rejected:', err);
-          // Retry once after a short delay (trackpad-friendly fallback)
+          console.warn('Pointer lock request rejected:', String(err));
           if (!this.pendingPointerLockTimeout) {
             this.pendingPointerLockTimeout = window.setTimeout(() => {
               this.pendingPointerLockTimeout = null;
-              if (!this.isPointerLocked && !this.isTitleScreen) {
-                this.requestPointerLock(true);
-              }
+              if (!this.isPointerLocked && !this.isTitleScreen) this.requestPointerLock(true);
             }, 250);
           }
         });
