@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export interface BoxCollider {
   min: THREE.Vector3;
@@ -31,7 +32,11 @@ export function buildHijackedMap(): MapData {
     });
   }
 
-  // Helper to create a static box mesh and register its collider
+  // Pending static boxes awaiting baking into merged meshes (one per material+renderOrder bucket)
+  const pendingBoxes: Array<{ geo: THREE.BoxGeometry; matrix: THREE.Matrix4; mat: THREE.Material; mesh: THREE.Mesh }> = [];
+
+  // Helper to create a static box mesh (deferred: baked into merged meshes at end of build)
+  // and register its collider immediately.
   function createSolidBox(
     w: number,
     h: number,
@@ -51,7 +56,10 @@ export function buildHijackedMap(): MapData {
     if (options?.renderOrder !== undefined) {
       mesh.renderOrder = options.renderOrder;
     }
-    root.add(mesh);
+    // Do NOT add mesh to root now; its geometry is captured into a pending bucket entry and
+    // merged into a single mesh per material+renderOrder at the end of buildHijackedMap.
+    mesh.updateMatrix();
+    pendingBoxes.push({ geo, matrix: mesh.matrix.clone(), mat, mesh });
 
     if (!options?.noCollider) {
       addCollider(x - w / 2, y, z - d / 2, x + w / 2, y + h, z + d / 2);
@@ -139,6 +147,21 @@ export function buildHijackedMap(): MapData {
     metalness: 0.2,
   });
 
+  // Map material uuid -> material instance so bakeMergedStatic can recover the right material per bucket
+  const materialByUuid = new Map<string, THREE.Material>([
+    [matHullWhite.uuid, matHullWhite],
+    [matTeakDeck.uuid, matTeakDeck],
+    [matDarkCarbon.uuid, matDarkCarbon],
+    [matChromeRailing.uuid, matChromeRailing],
+    [matGlassTinted.uuid, matGlassTinted],
+    [matHelipadGray.uuid, matHelipadGray],
+    [matHelipadYellow.uuid, matHelipadYellow],
+    [matJacuzziWater.uuid, matJacuzziWater],
+    [matTunnelMetal.uuid, matTunnelMetal],
+    [matHazardStripe.uuid, matHazardStripe],
+    [matCrateOlive.uuid, matCrateOlive],
+    [matCrateNavy.uuid, matCrateNavy],
+  ]);
   // ==========================================
   // 1. MAIN YACHT HULL & DECKS
   // ==========================================
@@ -566,6 +589,47 @@ export function buildHijackedMap(): MapData {
     }
     waterPosAttr.needsUpdate = true;
   }
+
+  // --- Bake static boxes into one merged mesh per material+renderOrder bucket ---
+  // Dev counters
+  console.log(`PRE-BAKE COLLIDERS: ${colliders.length}`);
+  console.log(`PRE-BAKE PENDING BOXES: ${pendingBoxes.length}`);
+
+  function bakeMergedStatic(
+    buckets: Map<string, Array<{ geo: THREE.BoxGeometry; matrix: THREE.Matrix4; renderOrder: number }>>,
+    rootGroup: THREE.Group
+  ) {
+    for (const [key, items] of buckets) {
+      const [matUuid, renderOrder] = key.split('|');
+      const mat = materialByUuid.get(matUuid);
+      if (!mat) continue;
+      const geos = items.map(({ geo, matrix }) => geo.clone().applyMatrix4(matrix));
+      const merged = mergeGeometries(geos, false);
+      if (!merged) continue;
+      const mesh = new THREE.Mesh(merged, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.renderOrder = Number(renderOrder);
+      rootGroup.add(mesh);
+    }
+  }
+
+  // Group pending boxes by material uuid + renderOrder (read renderOrder from the returned mesh
+  // so post-call assignments like hBar.renderOrder = 2 are respected)
+  const buckets = new Map<string, Array<{ geo: THREE.BoxGeometry; matrix: THREE.Matrix4; renderOrder: number }>>();
+  for (const entry of pendingBoxes) {
+    const ro = entry.mesh.renderOrder ?? 0;
+    const key = entry.mat.uuid + '|' + ro;
+    if (!buckets.has(key)) {
+      buckets.set(key, []);
+    }
+    buckets.get(key)!.push({ geo: entry.geo, matrix: entry.matrix, renderOrder: ro });
+  }
+
+  bakeMergedStatic(buckets, root);
+
+  console.log(`POST-BAKE COLLIDERS: ${colliders.length}`);
+  console.log(`POST-BAKE ROOT CHILDREN: ${root.children.length}`);
 
   return {
     sceneGroup: root,
