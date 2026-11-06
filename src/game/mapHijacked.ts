@@ -441,7 +441,7 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // 7. OCEAN WATER & HORIZON ISLANDS
   // ==========================================
-  const waterPlaneGeo = new THREE.PlaneGeometry(500, 500, 64, 64);
+  const waterPlaneGeo = new THREE.PlaneGeometry(500, 500, 32, 32);
   waterPlaneGeo.rotateX(-Math.PI / 2);
   const waterPlaneMat = new THREE.MeshStandardMaterial({
     color: 0x005577,
