@@ -309,9 +309,18 @@ export default function App() {
 
       {/* Mouse Lock Hint (Non-interactive — pointer lock toggles ONLY with the F key) */}
       {gameState === 'playing' && !isPointerLocked && (
-        <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center animate-in fade-in duration-300">
+        <div className="absolute inset-0 z-20 pointer-events-auto flex items-center justify-center animate-in fade-in duration-300">
           <div className="bg-slate-950/95 border-2 border-amber-400 px-8 py-4 rounded-2xl shadow-2xl flex flex-col items-center gap-2 animate-pulse">
             <div className="w-3 h-3 rounded-full bg-amber-400" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                engineRef.current?.requestPointerLock(true);
+              }}
+              className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase text-xs tracking-wider rounded-lg cursor-pointer"
+            >
+              Click here to lock mouse
+            </button>
             <span className="font-mono text-sm font-black text-white tracking-widest uppercase">
               PRESS CTRL+F TO LOCK MOUSE
             </span>

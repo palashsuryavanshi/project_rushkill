@@ -1062,7 +1062,7 @@ export function triggerBotHit(
   if (bot.hp <= 0) {
     bot.isDead = true;
     bot.deaths++;
-    bot.respawnTimer = 3.5;
+    bot.respawnTimer = 10.0;
 
     bot.bodyMesh.visible = false;
     bot.headMesh.visible = false;

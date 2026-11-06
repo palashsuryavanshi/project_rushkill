@@ -24,6 +24,7 @@ export interface EngineCallbacks {
 
 export class GameEngine {
   private container: HTMLDivElement;
+  private lockTarget!: HTMLDivElement;
   private renderer: THREE.WebGLRenderer | null = null;
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
@@ -68,6 +69,8 @@ export class GameEngine {
   private recoilYaw: number = 0;
   private flashTimer: number = 0;
   private gunBobTime: number = 0;
+  // Single-registration pending-hit queue (projectile travel / delay)
+  private pendingHits: Array<{ bot: BotState; isHead: boolean; damage: number; point: THREE.Vector3; dist: number; delay: number }> = [];
 
   // Stats & Scoring
   public hp: number = 100;
@@ -410,12 +413,7 @@ export class GameEngine {
 
     const onMouseMove = (e: MouseEvent) => {
       if (this.isTitleScreen) return;
-      // Fallback: if not locked, attempt to lock on mouse movement (trackpad-friendly)
       if (!this.isPointerLocked) {
-        const now = Date.now();
-        if (now - this.lastLockAttemptTime < 1000) return;  // throttle fallback attempts
-        this.lastLockAttemptTime = now;
-        this.requestPointerLock(true);
         return;
       }
       const sens = (this.settings.mouseSensitivity * 0.002) * (this.isAds ? 0.65 : 1.0);
@@ -426,7 +424,7 @@ export class GameEngine {
     };
 
     const onPointerLockChange = () => {
-      this.isPointerLocked = !!this.renderer && document.pointerLockElement === this.renderer.domElement;
+      this.isPointerLocked = !!this.renderer && (document.pointerLockElement === document.body);
       if (!this.isPointerLocked) {
         this.mouseButtonsHeld.clear();
         this.lastPointerLockExitTime = Date.now();
@@ -488,8 +486,8 @@ export class GameEngine {
   }
 
   public requestPointerLock(isDirectUserGesture = false) {
-    if (this.isTitleScreen || !this.renderer || !this.renderer.domElement) return;
-    if (document.pointerLockElement === this.renderer.domElement) {
+    if (this.isTitleScreen || !this.renderer) return;
+    if (document.pointerLockElement === document.body) {
       this.isPointerLocked = true;
       this.callbacks.onPointerLockChange?.(true);
       return;
@@ -508,23 +506,13 @@ export class GameEngine {
     }
 
     try {
-      const el = this.renderer.domElement;
-      // Ensure the element is actually attached to the live document.
-      if (el.getRootNode() !== document || !el.isConnected) {
-        console.warn('Pointer lock element not in document; re-attaching.');
-        this.container.appendChild(el);
-      }
+      const el = document.body;
+      if (import.meta.env.DEV) console.warn('DEBUG POINTERLOCK el=', el && el.tagName, 'lockedElement=', document.pointerLockElement, 'active=', document.hasFocus(), 'canvasInDoc=', this.renderer?.domElement?.isConnected);
       try { el.focus(); } catch {}
       const res = el.requestPointerLock();
       if (res && typeof (res as unknown as Promise<void>).catch === 'function') {
         (res as unknown as Promise<void>).catch((err: unknown) => {
           console.warn('Pointer lock request rejected:', String(err));
-          if (!this.pendingPointerLockTimeout) {
-            this.pendingPointerLockTimeout = window.setTimeout(() => {
-              this.pendingPointerLockTimeout = null;
-              if (!this.isPointerLocked && !this.isTitleScreen) this.requestPointerLock(true);
-            }, 250);
-          }
         });
       }
     } catch (err) {
@@ -610,6 +598,7 @@ export class GameEngine {
     this.requestPointerLock(true);
     this.notifyStats(true);
     this.callbacks.onFpsSample?.(null);
+    this.pendingHits = [];
   }
 
   private startReload() {
@@ -650,27 +639,24 @@ export class GameEngine {
       this.gunRig.muzzleFlash.rotation.z = Math.random() * Math.PI * 2;
     }
 
-    // Bullet Spreads & Raycasting
-    const numPellets = this.activeWeapon.pellets || 1;
+    // Bullet Spreads & Raycasting — each trigger pull registers at most ONCE per spray; pellet count applied once.
     const spread = this.isAds ? this.activeWeapon.adsSpread : this.activeWeapon.hipSpread;
-
-    for (let p = 0; p < numPellets; p++) {
-      this.shootPellet(spread);
-    }
+    const shotContext = { registered: false, tracerSpawned: false };
+    this.shootPellet(spread, shotContext);
 
     this.notifyStats(true);
   }
 
-  private shootPellet(spreadRad: number) {
+  private shootPellet(spreadRad: number, ctx: { registered: boolean; tracerSpawned: boolean }) {
     // Camera aim direction
     const aimDir = new THREE.Vector3(0, 0, -1);
     aimDir.applyEuler(new THREE.Euler(this.pitch + this.recoilPitch, this.yaw + this.recoilYaw, 0, 'YXZ'));
 
-    // Apply random spread circle with movement-based spread (scaled so running doesn't make hitting impossible)
+    // Movement / stance spread
     const movementSpread = this.playerVel.length() * 0.002;
     const stanceSpread = this.isSliding ? 0.08 : 0.02;
     const totalSpread = spreadRad + movementSpread + stanceSpread;
-    
+
     const angle = Math.random() * Math.PI * 2;
     const r = Math.random() * totalSpread;
     const spreadX = Math.cos(angle) * r;
@@ -681,7 +667,7 @@ export class GameEngine {
 
     const rayOrigin = this.camera.position.clone();
 
-    // Padded, rotation-agnostic AABB hit test (generous hitboxes for reliable hit registration)
+    // Padded, rotation-agnostic AABB hit test (unlimited range ceiling via far clip 300m)
     const rayBox = (origin: THREE.Vector3, dir: THREE.Vector3, min: THREE.Vector3, max: THREE.Vector3): number | null => {
       let tmin = 0.1; // near clip
       let tmax = 300; // far clip
@@ -694,9 +680,7 @@ export class GameEngine {
           let t1 = (min[axis] - o) / d;
           let t2 = (max[axis] - o) / d;
           if (t1 > t2) {
-            const tmp = t1;
-            t1 = t2;
-            t2 = tmp;
+            const tmp = t1; t1 = t2; t2 = tmp;
           }
           tmin = Math.max(tmin, t1);
           tmax = Math.min(tmax, t2);
@@ -713,44 +697,31 @@ export class GameEngine {
       if (bot.isDead) continue;
       const px = bot.pos.x, py = bot.pos.y, pz = bot.pos.z;
 
-      // Padded body hitbox (~1.2m tall x 1.2m x 1.0m wide — forgiving)
       const bodyHit = rayBox(
         rayOrigin, aimDir,
         new THREE.Vector3(px - 0.6, py + 0.4, pz - 0.5),
         new THREE.Vector3(px + 0.6, py + 1.65, pz + 0.5)
       );
-      // Padded head hitbox (0.9m cube — forgiving headshot recognition)
       const headHit = rayBox(
         rayOrigin, aimDir,
         new THREE.Vector3(px - 0.45, py + 1.5, pz - 0.45),
         new THREE.Vector3(px + 0.45, py + 2.3, pz + 0.45)
       );
 
-      // Head takes priority in the overlap (neck/shoulder) region
       if (headHit !== null && (bodyHit === null || headHit <= bodyHit + 0.15)) {
         if (headHit < closestDist) {
           closestDist = headHit;
-          closestHitBot = {
-            bot,
-            isHead: true,
-            point: rayOrigin.clone().addScaledVector(aimDir, headHit),
-            dist: headHit,
-          };
+          closestHitBot = { bot, isHead: true, point: rayOrigin.clone().addScaledVector(aimDir, headHit), dist: headHit };
         }
       } else if (bodyHit !== null) {
         if (bodyHit < closestDist) {
           closestDist = bodyHit;
-          closestHitBot = {
-            bot,
-            isHead: false,
-            point: rayOrigin.clone().addScaledVector(aimDir, bodyHit),
-            dist: bodyHit,
-          };
+          closestHitBot = { bot, isHead: false, point: rayOrigin.clone().addScaledVector(aimDir, bodyHit), dist: bodyHit };
         }
       }
     }
 
-    // Tracer line
+    // One tracer per trigger pull — never spawn parallel pellets visually
     const muzzleWorld = new THREE.Vector3();
     if (this.gunRig) {
       this.gunRig.muzzleFlash.getWorldPosition(muzzleWorld);
@@ -759,89 +730,102 @@ export class GameEngine {
     }
 
     const hitPoint = closestHitBot ? closestHitBot.point : rayOrigin.clone().addScaledVector(aimDir, 100);
-    this.spawnTracer(muzzleWorld, hitPoint);
+    if (!ctx.tracerSpawned) {
+      this.spawnTracer(muzzleWorld, hitPoint);
+      ctx.tracerSpawned = true;
+    }
 
-    if (closestHitBot) {
-      this.shotsHit++;
-      this.notifyStats(true);
+    // A shot registers at most once; impact queued as a projectile with travel time.
+    if (closestHitBot && !ctx.registered) {
+      ctx.registered = true;
       const { bot, isHead, point, dist } = closestHitBot;
-      const damage = calculateShotDamage(this.activeWeapon, isHead, dist);
-      const isKill = triggerBotHit(bot, damage, isHead);
+      const pelletCount = Math.max(1, this.activeWeapon.pellets || 1);
+      const damage = Math.max(1, Math.round(calculateShotDamage(this.activeWeapon, isHead, dist) * pelletCount));
+      const travelDelay = dist / this.activeWeapon.bulletSpeed;
 
-      // Hitmarker & Audio
-      sound.playHitmarker(isHead, isKill);
-      this.callbacks.onHitmarker({
-        time: Date.now(),
-        isHeadshot: isHead,
-        isKill,
-        damage,
-      });
+      const pendingHit = { bot, isHead, damage, point, dist, delay: Math.max(travelDelay, 0.05) };
+      // Execute immediately for instantaneous projectile (named for clarity) but keep queue for consistency
+      this.pendingHits.push(pendingHit);
+    }
 
-      // Floating damage number
-      const screenPos = point.clone().project(this.camera);
-      const screenX = ((screenPos.x + 1) * 0.5) * window.innerWidth;
-      const screenY = ((-screenPos.y + 1) * 0.5) * window.innerHeight;
-      this.callbacks.onFloatingDamage({
-        id: `dmg_${Date.now()}_${Math.random()}`,
-        damage,
-        isHeadshot: isHead,
-        x: point.x,
-        y: point.y,
-        z: point.z,
-        screenX,
-        screenY,
-        opacity: 1,
-      });
-
-      // Spawn blood/impact particles
-      this.spawnParticles(point, 12, isHead ? 0xff3333 : 0xffaa00);
-
-      if (isKill) {
-        this.kills++;
-        this.streak++;
-        if (this.streak > this.highestStreak) this.highestStreak = this.streak;
-        if (isHead) this.headshots++;
-
-        // Killfeed
-        this.callbacks.onKillfeed({
-          id: `kf_${Date.now()}`,
-          killer: 'You',
-          victim: bot.name,
-          weapon: this.activeWeapon.name,
-          isHeadshot: isHead,
-          isPlayerKiller: true,
-          isPlayerVictim: false,
-          timestamp: Date.now(),
-        });
-
-        // Score & Banners
-        const scoreRes = evaluateKillScore({
-          isHeadshot: isHead,
-          distance: dist,
-          currentStreak: this.streak - 1,
-          isSliding: this.isSliding,
-        });
-
-        this.score += scoreRes.addedScore;
-        scoreRes.banners.forEach((b) => this.callbacks.onStreakBanner(b));
-
-        if (this.streak >= 3) {
-          sound.playStreakFanfare();
-        }
-
-        // Check match victory
-        const matchState = checkMatchEnd({
-          playerScore: this.kills,
-          scoreLimit: this.scoreLimit,
-          timeRemainingSec: this.matchTimeRemaining,
-        });
-        if (matchState.isOver && matchState.winner) {
-          this.callbacks.onMatchEnd(matchState.winner);
-        }
-      }
-    } else {
-      // Wall / environment hit spark
+    if (!closestHitBot && !ctx.registered) {
+      // Wall impact spark — one per trigger pull
       this.spawnParticles(hitPoint, 6, 0xffe680);
+      ctx.registered = true; // consumed spark budget for this shot
+    }
+  }
+
+  private applyPlayerHit(pending: { bot: BotState; isHead: boolean; damage: number; point: THREE.Vector3; dist: number }) {
+    const { bot, isHead, point, dist } = pending;
+    const damage = pending.damage;
+    const isKill = triggerBotHit(bot, damage, isHead);
+
+    // HP/ammo/kills can change; user should see those instantly
+    this.shotsHit++;
+    this.notifyStats(true);
+
+    sound.playHitmarker(isHead, isKill);
+    this.callbacks.onHitmarker({
+      time: Date.now(),
+      isHeadshot: isHead,
+      isKill,
+      damage,
+    });
+
+    const screenPos = point.clone().project(this.camera);
+    const screenX = ((screenPos.x + 1) * 0.5) * window.innerWidth;
+    const screenY = ((-screenPos.y + 1) * 0.5) * window.innerHeight;
+    this.callbacks.onFloatingDamage({
+      id: `dmg_${Date.now()}_${Math.random()}`,
+      damage,
+      isHeadshot: isHead,
+      x: point.x,
+      y: point.y,
+      z: point.z,
+      screenX,
+      screenY,
+      opacity: 1,
+    });
+
+    this.spawnParticles(point, 12, isHead ? 0xff3333 : 0xffaa00);
+
+    if (isKill) {
+      this.kills++;
+      this.streak++;
+      if (this.streak > this.highestStreak) this.highestStreak = this.streak;
+      if (isHead) this.headshots++;
+
+      this.callbacks.onKillfeed({
+        id: `kf_${Date.now()}`,
+        killer: 'You',
+        victim: bot.name,
+        weapon: this.activeWeapon.name,
+        isHeadshot: isHead,
+        isPlayerKiller: true,
+        isPlayerVictim: false,
+        timestamp: Date.now(),
+      });
+
+      const scoreRes = evaluateKillScore({
+        isHeadshot: isHead,
+        distance: dist,
+        currentStreak: this.streak - 1,
+        isSliding: this.isSliding,
+      });
+
+      this.score += scoreRes.addedScore;
+      scoreRes.banners.forEach((b) => this.callbacks.onStreakBanner(b));
+
+      if (this.streak >= 3) sound.playStreakFanfare();
+
+      const matchState = checkMatchEnd({
+        playerScore: this.kills,
+        scoreLimit: this.scoreLimit,
+        timeRemainingSec: this.matchTimeRemaining,
+      });
+      if (matchState.isOver && matchState.winner) {
+        this.callbacks.onMatchEnd(matchState.winner);
+      }
     }
   }
 
@@ -1264,6 +1248,24 @@ export class GameEngine {
     if (partNeedsUpdate) this.particleMesh.instanceMatrix.needsUpdate = true;
   }
 
+  private updatePendingHits(dt: number) {
+    if (this.pendingHits.length === 0) return;
+
+    for (let i = this.pendingHits.length - 1; i >= 0; i--) {
+      const pending = this.pendingHits[i];
+      pending.delay -= dt;
+
+      if (pending.delay > 0) continue;
+
+      // Validate bot is still alive at impact time
+      if (!pending.bot.isDead) {
+        this.applyPlayerHit(pending);
+      }
+
+      this.pendingHits.splice(i, 1);
+    }
+  }
+
   private notifyStats(force: boolean = false) {
     const hSpeed = Math.sqrt(this.playerVel.x * this.playerVel.x + this.playerVel.z * this.playerVel.z);
     const reloadProgress = this.isReloading ? Math.max(0, 1 - this.reloadTimer / this.activeWeapon.reloadTimeSec) : 1;
@@ -1365,6 +1367,7 @@ export class GameEngine {
           this.updatePlayerPhysics(dt);
           this.updateCameraAndWeapon(dt);
           this.updateTracersAndParticles(dt);
+          this.updatePendingHits(dt);
 
           // Update Bots AI with Perception, LOS colliders, and Bot vs Bot targets
           const potentialTargets = [
