@@ -101,6 +101,7 @@ export class GameEngine {
   private mouseButtonsHeld = new Set<number>();
   public isPointerLocked: boolean = false;
   private lastPointerLockExitTime: number = 0;
+  private lastLockAttemptTime: number = 0;
   private pendingPointerLockTimeout: number | null = null;
 
   // Engine state
@@ -205,6 +206,10 @@ export class GameEngine {
     this.renderer.shadowMap.enabled = !this.isSoftwareGl;
     this.renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap deprecated/removed in r160+
     this.renderer.shadowMap.autoUpdate = true;
+
+    // Make canvas focusable so pointer lock can be requested reliably (trackpad/laptop)
+    canvas.tabIndex = 0;
+    canvas.style.outline = 'none';
 
     this.container.appendChild(this.renderer.domElement);
   }
@@ -404,7 +409,15 @@ export class GameEngine {
     };
 
     const onMouseMove = (e: MouseEvent) => {
-      if (!this.isPointerLocked || this.isTitleScreen) return;
+      if (this.isTitleScreen) return;
+      // Fallback: if not locked, attempt to lock on mouse movement (trackpad-friendly)
+      if (!this.isPointerLocked) {
+        const now = Date.now();
+        if (now - this.lastLockAttemptTime < 1000) return;  // throttle fallback attempts
+        this.lastLockAttemptTime = now;
+        this.requestPointerLock(true);
+        return;
+      }
       const sens = (this.settings.mouseSensitivity * 0.002) * (this.isAds ? 0.65 : 1.0);
       this.yaw -= e.movementX * sens;
       this.pitch -= e.movementY * sens;
@@ -449,7 +462,13 @@ export class GameEngine {
     window.addEventListener('mousemove', onMouseMove);
     document.addEventListener('pointerlockchange', onPointerLockChange);
     document.addEventListener('pointerlockerror', onPointerLockError);
-    window.addEventListener('blur', onBlur);
+    const onFocus = () => {
+      // Re-lock if the game is playing and the mouse was previously locked but exited (trackpad-friendly)
+      if (!this.isTitleScreen && !this.isPointerLocked && document.hasFocus()) {
+        this.requestPointerLock(true);
+      }
+    };
+    window.addEventListener('focus', onFocus);
     window.addEventListener('resize', onResize);
     window.addEventListener('contextmenu', onContextMenu);
 
@@ -462,6 +481,7 @@ export class GameEngine {
       document.removeEventListener('pointerlockchange', onPointerLockChange);
       document.removeEventListener('pointerlockerror', onPointerLockError);
       window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('contextmenu', onContextMenu);
     };
@@ -488,14 +508,25 @@ export class GameEngine {
     }
 
     try {
+      // Focus the canvas first — helps pointer lock engage on trackpads/laptops
+      try { this.renderer.domElement.focus(); } catch {}
       const res = this.renderer.domElement.requestPointerLock();
       if (res && typeof (res as unknown as Promise<void>).catch === 'function') {
-        (res as unknown as Promise<void>).catch(() => {
-          // Handled gracefully: browser cooldown or permission denied
+        (res as unknown as Promise<void>).catch((err: unknown) => {
+          console.warn('Pointer lock request rejected:', err);
+          // Retry once after a short delay (trackpad-friendly fallback)
+          if (!this.pendingPointerLockTimeout) {
+            this.pendingPointerLockTimeout = window.setTimeout(() => {
+              this.pendingPointerLockTimeout = null;
+              if (!this.isPointerLocked && !this.isTitleScreen) {
+                this.requestPointerLock(true);
+              }
+            }, 250);
+          }
         });
       }
-    } catch {
-      // Handled gracefully: synchronous exception
+    } catch (err) {
+      console.warn('Pointer lock request threw:', err);
     }
   }
 

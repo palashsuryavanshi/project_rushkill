@@ -308,11 +308,14 @@ export default function App() {
 
       {/* Mouse Lock Hint (Non-interactive — pointer lock toggles ONLY with the F key) */}
       {gameState === 'playing' && !isPointerLocked && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none animate-in fade-in duration-200">
-          <div className="bg-slate-950/90 border border-amber-400/80 px-5 py-2 rounded-xl shadow-2xl flex items-center gap-2.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-            <span className="font-mono text-xs font-bold text-white tracking-widest uppercase">
+        <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center animate-in fade-in duration-300">
+          <div className="bg-slate-950/95 border-2 border-amber-400 px-8 py-4 rounded-2xl shadow-2xl flex flex-col items-center gap-2 animate-pulse">
+            <div className="w-3 h-3 rounded-full bg-amber-400" />
+            <span className="font-mono text-sm font-black text-white tracking-widest uppercase">
               PRESS F TO LOCK MOUSE
+            </span>
+            <span className="text-xs text-slate-400 font-mono">
+              (Cursor confined to game window while locked)
             </span>
           </div>
         </div>
