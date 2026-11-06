@@ -1,7 +1,7 @@
 # Project Rushkill — Performance Hardening (Browser-Only) Design
 
 **Date:** 2026-11-05
-**Status:** Approved approach A (stay on React + Three.js, harden, design for multiplayer later). This document covers the hardening pass only — multiplayer netcode is out of scope.
+**Status:** Implemented This document covers the hardening pass only — multiplayer netcode is out of scope.
 
 ## Intent & Why
 The game is browser-only today, with private multiplayer as the near-term goal and public multiplayer later. Load time and in-game lag are painful on low-end systems. The winning move is engineering debt removal in the current stack — not a stack swap (PlayCanvas / Godot-WASM either buy nothing or make load time worse and force a rewrite; both were rejected in the pre-design review).
