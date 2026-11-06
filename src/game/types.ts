@@ -95,6 +95,7 @@ export interface GameSettings {
   showDamageNumbers: boolean;
   crosshairColor: string;
   showFps: boolean;
+  graphicsPreset: 'auto' | 'high' | 'low';
 }
 
 export type BotDifficulty = 'recruit' | 'regular' | 'veteran' | 'elite';

@@ -32,6 +32,7 @@ export class GameEngine {
   // Software GL detection & lifecycle state
   private isSoftwareGl: boolean = false;
   public webGlFailed: boolean = false;
+  public graphicsTierApplied: 'high' | 'low' = 'high';
   private frameId: number = 0;
   private cleanupListeners: (() => void) | null = null;
   private handleContextLost: ((e: Event) => void) | null = null;
@@ -87,12 +88,12 @@ export class GameEngine {
   // Tracers & Particles Pool
   private tracerMesh!: THREE.InstancedMesh;
   private tracerData: { pos: THREE.Vector3; vel: THREE.Vector3; life: number; active: boolean }[] = [];
-  private readonly MAX_TRACERS = 32;
+  private MAX_TRACERS = 32;
 
   // Particles
   private particleMesh!: THREE.InstancedMesh;
   private particleData: { pos: THREE.Vector3; vel: THREE.Vector3; life: number; color: THREE.Color; active: boolean }[] = [];
-  private readonly MAX_PARTICLES = 64;
+  private MAX_PARTICLES = 64;
 
   // Inputs
   private keysHeld = new Set<string>();
@@ -121,6 +122,7 @@ export class GameEngine {
     if (this.webGlFailed || !this.renderer) {
       return;
     }
+    this.applyGraphicsPreset(this.settings.graphicsPreset);
     this.initScene();
     this.initInputListeners();
     this.setWeapon(RUSH_WEAPONS[0]);
@@ -205,6 +207,24 @@ export class GameEngine {
     this.container.appendChild(this.renderer.domElement);
   }
 
+  public applyGraphicsPreset(preset: 'auto' | 'high' | 'low'): void {
+    if (this.isSoftwareGl) return; // software path already low
+    let tier: 'high' | 'low' = 'high';
+    if (preset === 'low') tier = 'low';
+    else if (preset === 'auto') {
+      const dm = (navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 8;
+      const hc = navigator.hardwareConcurrency ?? 8;
+      tier = dm < 4 || hc <= 4 ? 'low' : 'high';
+    }
+    if (tier === 'low') {
+      this.renderer?.setPixelRatio(1);
+      if (this.renderer) this.renderer.shadowMap.enabled = false;
+      this.MAX_PARTICLES = 32;
+      this.MAX_TRACERS = 16;
+      this.graphicsTierApplied = 'low';
+    }
+  }
+
   private initScene() {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x7ec8e3); // Tropical bright Caribbean sky
@@ -226,7 +246,7 @@ export class GameEngine {
     // Balanced Lighting Rig
     const sunLight = new THREE.DirectionalLight(0xfffaed, 2.2);
     sunLight.position.set(45, 60, -35);
-    sunLight.castShadow = !this.isSoftwareGl;
+    sunLight.castShadow = !this.isSoftwareGl && this.graphicsTierApplied === 'high';
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.bias = -0.00005;

@@ -153,6 +153,29 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                 {settings.showFps ? 'Hide (on)' : 'Show (off)'}
               </button>
             </div>
+
+            {/* Graphics quality tri-state */}
+            <div className="flex flex-col gap-1.5 pt-2 border-t border-slate-800/80">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-mono">Graphics quality</span>
+                <div className="flex gap-1.5">
+                  {(['auto', 'high', 'low'] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => onUpdateSettings({ ...settings, graphicsPreset: opt })}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg border cursor-pointer transition-colors ${
+                        settings.graphicsPreset === opt
+                          ? 'bg-amber-500 text-black border-amber-400'
+                          : 'bg-slate-900 text-slate-200 border-slate-700 hover:text-white'
+                      }`}
+                    >
+                      {opt === 'auto' ? 'Auto' : opt === 'high' ? 'High' : 'Low'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono">Applies on next match</span>
+            </div>
           </div>
         )}
 

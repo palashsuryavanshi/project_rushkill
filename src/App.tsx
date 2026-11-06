@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   showDamageNumbers: true,
   crosshairColor: '#00ffcc',
   showFps: true,
+  graphicsPreset: 'auto',
 };
 
 const DEFAULT_MATCH_CONFIG: MatchConfig = {
