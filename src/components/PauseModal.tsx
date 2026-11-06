@@ -174,7 +174,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                   ))}
                 </div>
               </div>
-              <span className="text-[10px] text-slate-500 font-mono">Applies on next match</span>
+              <span className="text-[10px] text-slate-500 font-mono">Applies immediately</span>
             </div>
           </div>
         )}

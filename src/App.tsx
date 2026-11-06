@@ -139,7 +139,7 @@ export default function App() {
           setWebGlError(errMsg);
         },
         onFpsSample: (sample) => {
-          setFpsSample(sample);
+          setFpsSample(sample || null);
         },
       });
 
@@ -219,6 +219,7 @@ export default function App() {
   const handleRestart = useCallback(() => {
     if (!engineRef.current) return;
     engineRef.current.startMatch(matchConfig);
+    setFpsSample(null);
     setGameState('playing');
   }, [matchConfig]);
 
@@ -234,6 +235,7 @@ export default function App() {
     setSettings(newSettings);
     if (engineRef.current) {
       engineRef.current.settings = newSettings;
+      engineRef.current.applyGraphicsPreset(newSettings.graphicsPreset);
     }
   }, []);
 

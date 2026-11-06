@@ -50,6 +50,7 @@ export function buildHijackedMap(): MapData {
     const geo = new THREE.BoxGeometry(w, h, d);
     const mesh = new THREE.Mesh(geo, mat);
     // Embed static meshes 2mm into whatever they sit on so contact faces are never coplanar (eliminates Z-fighting)
+    // NOTE(particle-normal-offset): no change required — 2mm embed applies to box geometry, not particle normals
     mesh.position.set(x, y + h / 2 - 0.002, z);
     mesh.castShadow = options?.castShadow ?? true;
     mesh.receiveShadow = options?.receiveShadow ?? true;
@@ -592,8 +593,10 @@ export function buildHijackedMap(): MapData {
 
   // --- Bake static boxes into one merged mesh per material+renderOrder bucket ---
   // Dev counters
-  console.log(`PRE-BAKE COLLIDERS: ${colliders.length}`);
-  console.log(`PRE-BAKE PENDING BOXES: ${pendingBoxes.length}`);
+  if (import.meta.env.DEV) {
+    console.log(`PRE-BAKE COLLIDERS: ${colliders.length}`);
+    console.log(`PRE-BAKE PENDING BOXES: ${pendingBoxes.length}`);
+  }
 
   function bakeMergedStatic(
     buckets: Map<string, Array<{ geo: THREE.BoxGeometry; matrix: THREE.Matrix4; renderOrder: number }>>,
@@ -628,8 +631,10 @@ export function buildHijackedMap(): MapData {
 
   bakeMergedStatic(buckets, root);
 
-  console.log(`POST-BAKE COLLIDERS: ${colliders.length}`);
-  console.log(`POST-BAKE ROOT CHILDREN: ${root.children.length}`);
+  if (import.meta.env.DEV) {
+    console.log(`POST-BAKE COLLIDERS: ${colliders.length}`);
+    console.log(`POST-BAKE ROOT CHILDREN: ${root.children.length}`);
+  }
 
   return {
     sceneGroup: root,

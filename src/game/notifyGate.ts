@@ -17,11 +17,16 @@ export function statsChanged(a: PlayerStats | null, b: PlayerStats): boolean {
 }
 
 export interface LastMinimap { x: number; z: number; angle: number }
+
+// Canonical wrap of an angle into [-π, π], robust against extra full wraps.
+export function wrapAngle(angle: number): number {
+  return ((angle + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+}
+
 // Quantized compare: skip if player moved < 0.05u and angle changed < 0.01 rad
 export function minimapChanged(last: LastMinimap | null, x: number, z: number, angle: number): boolean {
   if (!last) return true;
   const dx = last.x - x, dz = last.z - z;
-  let da = Math.abs(last.angle - angle);
-  if (da > Math.PI) da -= Math.PI * 2;
+  const da = Math.abs(wrapAngle(last.angle - angle));
   return dx * dx + dz * dz > 0.0025 || Math.abs(da) > 0.01;
 }

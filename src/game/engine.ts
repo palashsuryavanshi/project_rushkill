@@ -19,7 +19,7 @@ export interface EngineCallbacks {
   onMinimapUpdate: (playerPos: { x: number; z: number; angle: number }, bots: { id: string; x: number; z: number; isDead: boolean }[]) => void;
   onPointerLockChange?: (locked: boolean) => void;
   onWebGLError?: (errorMsg: string) => void;
-  onFpsSample?: (sample: { fps: number; frameMs: number; calls: number }) => void;
+  onFpsSample?: (sample: { fps: number; frameMs: number; calls: number } | null) => void;
 }
 
 export class GameEngine {
@@ -88,12 +88,12 @@ export class GameEngine {
   // Tracers & Particles Pool
   private tracerMesh!: THREE.InstancedMesh;
   private tracerData: { pos: THREE.Vector3; vel: THREE.Vector3; life: number; active: boolean }[] = [];
-  private MAX_TRACERS = 32;
+  private readonly MAX_TRACERS = 32;
 
   // Particles
   private particleMesh!: THREE.InstancedMesh;
   private particleData: { pos: THREE.Vector3; vel: THREE.Vector3; life: number; color: THREE.Color; active: boolean }[] = [];
-  private MAX_PARTICLES = 64;
+  private readonly MAX_PARTICLES = 64;
 
   // Inputs
   private keysHeld = new Set<string>();
@@ -109,6 +109,7 @@ export class GameEngine {
   public settings: GameSettings;
   private lastStatsPayload: PlayerStats | null = null;
   private lastMinimapSample: LastMinimap | null = null;
+  private statsAccum = 0;
   private minimapAccum = 0;
   private fpsFrames = 0;
   private fpsElapsed = 0;
@@ -208,10 +209,12 @@ export class GameEngine {
   }
 
   public applyGraphicsPreset(preset: 'auto' | 'high' | 'low'): void {
-    if (this.isSoftwareGl) return; // software path already low
     let tier: 'high' | 'low' = 'high';
-    if (preset === 'low') tier = 'low';
-    else if (preset === 'auto') {
+    if (this.isSoftwareGl) {
+      tier = 'low';
+    } else if (preset === 'low') {
+      tier = 'low';
+    } else if (preset === 'auto') {
       const dm = (navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 8;
       const hc = navigator.hardwareConcurrency ?? 8;
       tier = dm < 4 || hc <= 4 ? 'low' : 'high';
@@ -219,9 +222,11 @@ export class GameEngine {
     if (tier === 'low') {
       this.renderer?.setPixelRatio(1);
       if (this.renderer) this.renderer.shadowMap.enabled = false;
-      this.MAX_PARTICLES = 32;
-      this.MAX_TRACERS = 16;
       this.graphicsTierApplied = 'low';
+    } else {
+      this.renderer?.setPixelRatio(this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+      if (this.renderer) this.renderer.shadowMap.enabled = true;
+      this.graphicsTierApplied = 'high';
     }
   }
 
@@ -331,7 +336,7 @@ export class GameEngine {
     this.gunRig.group.position.set(0.24, -0.22, -0.42);
     this.gunRig.group.rotation.set(0, 0, 0);
 
-    this.notifyStats();
+    this.notifyStats(true);
   }
 
   private spawnBots(difficulty: BotDifficulty = 'regular') {
@@ -506,6 +511,7 @@ export class GameEngine {
   }
 
   public startMatch(config?: MatchConfig) {
+    this.applyGraphicsPreset(this.settings.graphicsPreset);
     this.isTitleScreen = false;
     document.body.dataset.state = 'playing';
     this.playerPos.set(0, 0.1, -45);
@@ -567,7 +573,8 @@ export class GameEngine {
     }
 
     this.requestPointerLock(true);
-    this.notifyStats();
+    this.notifyStats(true);
+    this.callbacks.onFpsSample?.(null);
   }
 
   private startReload() {
@@ -616,7 +623,7 @@ export class GameEngine {
       this.shootPellet(spread);
     }
 
-    this.notifyStats();
+    this.notifyStats(true);
   }
 
   private shootPellet(spreadRad: number) {
@@ -721,6 +728,7 @@ export class GameEngine {
 
     if (closestHitBot) {
       this.shotsHit++;
+      this.notifyStats(true);
       const { bot, isHead, point, dist } = closestHitBot;
       const damage = calculateShotDamage(this.activeWeapon, isHead, dist);
       const isKill = triggerBotHit(bot, damage, isHead);
@@ -803,7 +811,8 @@ export class GameEngine {
   }
 
   private spawnTracer(from: THREE.Vector3, to: THREE.Vector3) {
-    const tracer = this.tracerData.find((t) => !t.active);
+    const tracerCap = this.graphicsTierApplied === 'low' ? 16 : 32;
+    const tracer = this.tracerData.slice(0, tracerCap).find((t) => !t.active);
     if (!tracer) return;
     tracer.active = true;
     tracer.pos.copy(from);
@@ -815,9 +824,11 @@ export class GameEngine {
   }
 
   private spawnParticles(pos: THREE.Vector3, count: number, hexColor: number) {
+    const particleCap = this.graphicsTierApplied === 'low' ? 32 : 64;
     let spawned = 0;
-    for (const p of this.particleData) {
+    for (let i = 0; i < particleCap; i++) {
       if (spawned >= count) break;
+      const p = this.particleData[i];
       if (!p.active) {
         p.active = true;
         p.pos.copy(pos);
@@ -879,7 +890,7 @@ export class GameEngine {
           this.playerPos.copy(sp);
           this.playerVel.set(0, 0, 0);
         }
-        this.notifyStats();
+        this.notifyStats(true);
       }
     } else {
       // Bot firing at another bot (FFA Bot-vs-Bot action!)
@@ -932,7 +943,7 @@ export class GameEngine {
         const reloadAmount = Math.min(needed, this.reserveAmmo);
         this.ammo += reloadAmount;
         this.reserveAmmo -= reloadAmount;
-        this.notifyStats();
+        this.notifyStats(true);
       }
     }
 
@@ -1174,7 +1185,8 @@ export class GameEngine {
   private updateTracersAndParticles(dt: number) {
     // Tracers
     let tracerNeedsUpdate = false;
-    for (let i = 0; i < this.MAX_TRACERS; i++) {
+    const tracerCap = this.graphicsTierApplied === 'low' ? 16 : 32;
+    for (let i = 0; i < tracerCap; i++) {
       const t = this.tracerData[i];
       if (t.active) {
         t.life -= dt;
@@ -1195,7 +1207,8 @@ export class GameEngine {
 
     // Particles
     let partNeedsUpdate = false;
-    for (let i = 0; i < this.MAX_PARTICLES; i++) {
+    const particleCap = this.graphicsTierApplied === 'low' ? 32 : 64;
+    for (let i = 0; i < particleCap; i++) {
       const p = this.particleData[i];
       if (p.active) {
         p.life -= dt;
@@ -1216,7 +1229,7 @@ export class GameEngine {
     if (partNeedsUpdate) this.particleMesh.instanceMatrix.needsUpdate = true;
   }
 
-  private notifyStats() {
+  private notifyStats(force: boolean = false) {
     const hSpeed = Math.sqrt(this.playerVel.x * this.playerVel.x + this.playerVel.z * this.playerVel.z);
     const reloadProgress = this.isReloading ? Math.max(0, 1 - this.reloadTimer / this.activeWeapon.reloadTimeSec) : 1;
     const payload: PlayerStats = {
@@ -1239,12 +1252,12 @@ export class GameEngine {
       isSliding: this.isSliding,
       isGrounded: this.isGrounded,
     };
-    if (!statsChanged(this.lastStatsPayload, payload)) return;
+    if (!force && !statsChanged(this.lastStatsPayload, payload)) return;
     this.lastStatsPayload = payload;
     this.callbacks.onStatsUpdate(payload);
   }
 
-  private notifyMinimap(dt: number) {
+  private notifyMinimap() {
     // throttle: at most one emission every >= 0.1s
     if (this.minimapAccum < 0.1) return;
     const x = this.playerPos.x, z = this.playerPos.z, angle = this.yaw;
@@ -1355,8 +1368,12 @@ export class GameEngine {
 
           // Throttled HUD update
           this.minimapAccum += dt;
-          this.notifyStats();
-          this.notifyMinimap(dt);
+          this.statsAccum += dt;
+          if (this.statsAccum >= 0.1) {
+            this.notifyStats(true);
+            this.statsAccum = 0;
+          }
+          this.notifyMinimap();
         }
       }
 
@@ -1368,11 +1385,11 @@ export class GameEngine {
 
       this.fpsFrames++;
       this.fpsElapsed += dt;
-      if (this.fpsElapsed >= 1.0) {
+      if (this.fpsElapsed >= 1.0 && this.settings.showFps) {
         this.callbacks.onFpsSample?.({
           fps: this.fpsFrames / this.fpsElapsed,
           frameMs: (this.fpsElapsed / this.fpsFrames) * 1000,
-          calls: (this.renderer as unknown as { info: { render: { calls: number } } }).info.render.calls,
+          calls: (this.renderer as any)?.info?.render?.calls ?? 0,
         });
         this.fpsFrames = 0;
         this.fpsElapsed = 0;
