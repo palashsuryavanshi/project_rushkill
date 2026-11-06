@@ -7,6 +7,7 @@ import { buildGunModel, GunRig } from './gunModels';
 import { BotState, BotPersonality, createBot, updateBotAI, triggerBotHit } from './botAI';
 import { evaluateKillScore, checkMatchEnd } from './rules';
 import { sound } from './audio';
+import { statsChanged, minimapChanged, LastMinimap } from './notifyGate';
 
 export interface EngineCallbacks {
   onStatsUpdate: (stats: PlayerStats) => void;
@@ -104,6 +105,9 @@ export class GameEngine {
   public isTitleScreen: boolean = true;
   private callbacks: EngineCallbacks;
   public settings: GameSettings;
+  private lastStatsPayload: PlayerStats | null = null;
+  private lastMinimapSample: LastMinimap | null = null;
+  private minimapAccum = 0;
 
   constructor(container: HTMLDivElement, settings: GameSettings, callbacks: EngineCallbacks) {
     this.container = container;
@@ -1191,13 +1195,14 @@ export class GameEngine {
 
   private notifyStats() {
     const hSpeed = Math.sqrt(this.playerVel.x * this.playerVel.x + this.playerVel.z * this.playerVel.z);
-    this.callbacks.onStatsUpdate({
+    const reloadProgress = this.isReloading ? Math.max(0, 1 - this.reloadTimer / this.activeWeapon.reloadTimeSec) : 1;
+    const payload: PlayerStats = {
       hp: Math.max(0, this.hp),
       maxHp: this.maxHp,
       ammo: this.ammo,
       reserveAmmo: this.reserveAmmo,
       isReloading: this.isReloading,
-      reloadProgress: this.isReloading ? Math.max(0, 1 - this.reloadTimer / this.activeWeapon.reloadTimeSec) : 1,
+      reloadProgress: Math.round(reloadProgress * 100) / 100,
       isAds: this.isAds,
       score: this.score,
       kills: this.kills,
@@ -1210,13 +1215,23 @@ export class GameEngine {
       speed: Math.round(hSpeed),
       isSliding: this.isSliding,
       isGrounded: this.isGrounded,
-    });
+    };
+    if (!statsChanged(this.lastStatsPayload, payload)) return;
+    this.lastStatsPayload = payload;
+    this.callbacks.onStatsUpdate(payload);
   }
 
-  private notifyMinimap() {
+  private notifyMinimap(dt: number) {
+    // throttle: at most one emission every >= 0.1s
+    if (this.minimapAccum < 0.1) return;
+    const x = this.playerPos.x, z = this.playerPos.z, angle = this.yaw;
+    if (!minimapChanged(this.lastMinimapSample, x, z, angle)) return;
+    const bots = this.bots.map((b) => ({ id: b.id, x: b.pos.x, z: b.pos.z, isDead: b.isDead }));
+    this.lastMinimapSample = { x, z, angle };
+    this.minimapAccum = 0;
     this.callbacks.onMinimapUpdate(
-      { x: this.playerPos.x, z: this.playerPos.z, angle: this.yaw },
-      this.bots.map((b) => ({ id: b.id, x: b.pos.x, z: b.pos.z, isDead: b.isDead }))
+      { x, z, angle },
+      bots
     );
   }
 
@@ -1316,8 +1331,9 @@ export class GameEngine {
           }
 
           // Throttled HUD update
+          this.minimapAccum += dt;
           this.notifyStats();
-          this.notifyMinimap();
+          this.notifyMinimap(dt);
         }
       }
 
