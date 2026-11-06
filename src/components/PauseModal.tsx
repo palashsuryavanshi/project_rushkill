@@ -142,6 +142,17 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                 {isMuted ? 'Unmute Audio' : 'Mute Audio'}
               </button>
             </div>
+
+            {/* FPS readout toggle */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+              <span className="text-xs text-slate-400 font-mono">FPS readout</span>
+              <button
+                onClick={() => onUpdateSettings({ ...settings, showFps: !settings.showFps })}
+                className="px-3 py-1.5 bg-slate-900 border border-slate-700 text-xs font-bold rounded-lg text-slate-200 hover:text-white cursor-pointer"
+              >
+                {settings.showFps ? 'Hide (on)' : 'Show (off)'}
+              </button>
+            </div>
           </div>
         )}
 

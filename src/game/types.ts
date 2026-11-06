@@ -94,6 +94,7 @@ export interface GameSettings {
   showMinimap: boolean;
   showDamageNumbers: boolean;
   crosshairColor: string;
+  showFps: boolean;
 }
 
 export type BotDifficulty = 'recruit' | 'regular' | 'veteran' | 'elite';

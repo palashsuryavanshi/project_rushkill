@@ -16,6 +16,7 @@ interface HUDProps {
     playerPos: { x: number; z: number; angle: number };
     bots: { id: string; x: number; z: number; isDead: boolean }[];
   } | null;
+  fpsOverlay?: React.ReactNode;
   onPause: () => void;
 }
 
@@ -29,6 +30,7 @@ export const HUD: React.FC<HUDProps> = ({
   matchTimeSec,
   scoreLimit,
   minimapData,
+  fpsOverlay,
   onPause,
 }) => {
   const [ghostHp, setGhostHp] = useState(stats.hp);
@@ -353,6 +355,13 @@ export const HUD: React.FC<HUDProps> = ({
           </div>
         </div>
       </div>
+
+      {/* FPS readout overlay */}
+      {fpsOverlay && (
+        <div className="fixed bottom-28 right-6 pointer-events-none z-40">
+          {fpsOverlay}
+        </div>
+      )}
 
       {/* 9. BOTTOM-RIGHT CLUSTER: WEAPON & AMMO */}
       <div className="absolute bottom-6 right-6 flex flex-col items-end gap-2 max-w-sm">

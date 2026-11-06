@@ -19,6 +19,7 @@ export interface EngineCallbacks {
   onMinimapUpdate: (playerPos: { x: number; z: number; angle: number }, bots: { id: string; x: number; z: number; isDead: boolean }[]) => void;
   onPointerLockChange?: (locked: boolean) => void;
   onWebGLError?: (errorMsg: string) => void;
+  onFpsSample?: (sample: { fps: number; frameMs: number; calls: number }) => void;
 }
 
 export class GameEngine {
@@ -108,6 +109,8 @@ export class GameEngine {
   private lastStatsPayload: PlayerStats | null = null;
   private lastMinimapSample: LastMinimap | null = null;
   private minimapAccum = 0;
+  private fpsFrames = 0;
+  private fpsElapsed = 0;
 
   constructor(container: HTMLDivElement, settings: GameSettings, callbacks: EngineCallbacks) {
     this.container = container;
@@ -1341,6 +1344,18 @@ export class GameEngine {
         this.renderer.render(this.scene, this.camera);
       } catch (renderErr) {
         console.warn('Render exception caught:', renderErr);
+      }
+
+      this.fpsFrames++;
+      this.fpsElapsed += dt;
+      if (this.fpsElapsed >= 1.0) {
+        this.callbacks.onFpsSample?.({
+          fps: this.fpsFrames / this.fpsElapsed,
+          frameMs: (this.fpsElapsed / this.fpsFrames) * 1000,
+          calls: (this.renderer as unknown as { info: { render: { calls: number } } }).info.render.calls,
+        });
+        this.fpsFrames = 0;
+        this.fpsElapsed = 0;
       }
 
       if (this.isSoftwareGl) {

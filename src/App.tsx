@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   showMinimap: true,
   showDamageNumbers: true,
   crosshairColor: '#00ffcc',
+  showFps: true,
 };
 
 const DEFAULT_MATCH_CONFIG: MatchConfig = {
@@ -80,6 +81,7 @@ export default function App() {
     playerPos: { x: number; z: number; angle: number };
     bots: { id: string; x: number; z: number; isDead: boolean }[];
   } | null>(null);
+  const [fpsSample, setFpsSample] = useState<{ fps: number; frameMs: number; calls: number } | null>(null);
   const [webGlError, setWebGlError] = useState<string | null>(null);
   const [engineRetryKey, setEngineRetryKey] = useState<number>(0);
 
@@ -134,6 +136,9 @@ export default function App() {
         },
         onWebGLError: (errMsg) => {
           setWebGlError(errMsg);
+        },
+        onFpsSample: (sample) => {
+          setFpsSample(sample);
         },
       });
 
@@ -282,6 +287,15 @@ export default function App() {
           matchTimeSec={engineRef.current ? engineRef.current.matchTimeRemaining : 300}
           scoreLimit={engineRef.current ? engineRef.current.scoreLimit : 25}
           minimapData={minimapData}
+          fpsOverlay={
+            settings.showFps ? (
+              <div className="pointer-events-none font-mono text-xs px-3 py-1.5 rounded-xl bg-slate-950/90 border border-slate-700 text-slate-200 shadow-lg">
+                {fpsSample
+                  ? `${fpsSample.fps.toFixed(0)} FPS • ${fpsSample.frameMs.toFixed(1)} ms • ${fpsSample.calls} calls`
+                  : '…'}
+              </div>
+            ) : null
+          }
           onPause={() => {
             setGameState('paused');
             engineRef.current?.exitPointerLock();
