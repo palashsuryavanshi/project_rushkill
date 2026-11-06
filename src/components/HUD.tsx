@@ -384,7 +384,9 @@ export const HUD: React.FC<HUDProps> = ({
               {stats.ammo}
             </span>
             <span className="text-slate-500 text-sm font-bold">/</span>
-            <span className="text-slate-400 text-lg font-bold tabular-nums">{stats.reserveAmmo}</span>
+            <span className="text-slate-400 text-lg font-bold tabular-nums">
+              {Number.isFinite(stats.reserveAmmo) ? stats.reserveAmmo : '∞'}
+            </span>
           </div>
 
           {/* Reloading Progress Indicator */}
