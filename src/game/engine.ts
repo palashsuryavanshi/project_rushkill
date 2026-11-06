@@ -28,6 +28,7 @@ export class GameEngine {
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
   private mapData!: MapData;
+  private sunLight!: THREE.DirectionalLight;
 
   // Software GL detection & lifecycle state
   private isSoftwareGl: boolean = false;
@@ -222,12 +223,12 @@ export class GameEngine {
     if (tier === 'low') {
       this.renderer?.setPixelRatio(1);
       if (this.renderer) this.renderer.shadowMap.enabled = false;
-      this.graphicsTierApplied = 'low';
     } else {
       this.renderer?.setPixelRatio(this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
       if (this.renderer) this.renderer.shadowMap.enabled = true;
-      this.graphicsTierApplied = 'high';
     }
+    this.graphicsTierApplied = tier;
+    if (this.sunLight) this.sunLight.castShadow = this.graphicsTierApplied === 'high' && !this.isSoftwareGl;
   }
 
   private initScene() {
@@ -250,6 +251,7 @@ export class GameEngine {
 
     // Balanced Lighting Rig
     const sunLight = new THREE.DirectionalLight(0xfffaed, 2.2);
+    this.sunLight = sunLight;
     sunLight.position.set(45, 60, -35);
     sunLight.castShadow = !this.isSoftwareGl && this.graphicsTierApplied === 'high';
     sunLight.shadow.mapSize.width = 2048;
