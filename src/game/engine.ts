@@ -8,6 +8,7 @@ import { BotState, BotPersonality, createBot, updateBotAI, triggerBotHit } from 
 import { findClosestBotHit, applySpread, drainPendingHits, type PendingHit } from './combat';
 import { PlayerPhysics } from './playerPhysics';
 import { PointerLockController } from './pointerLock';
+import { EffectsPool } from './effectsPool';
 import { evaluateKillScore, checkMatchEnd } from './rules';
 import { sound } from './audio';
 import { statsChanged, minimapChanged, LastMinimap } from './notifyGate';
@@ -85,14 +86,7 @@ export class GameEngine {
   private bots: BotState[] = [];
 
   // Tracers & Particles Pool
-  private tracerMesh!: THREE.InstancedMesh;
-  private tracerData: { pos: THREE.Vector3; vel: THREE.Vector3; life: number; active: boolean }[] = [];
-  private readonly MAX_TRACERS = 32;
-
-  // Particles
-  private particleMesh!: THREE.InstancedMesh;
-  private particleData: { pos: THREE.Vector3; vel: THREE.Vector3; life: number; color: THREE.Color; active: boolean }[] = [];
-  private readonly MAX_PARTICLES = 64;
+  private effects!: EffectsPool;
 
   // Inputs
   private keysHeld = new Set<string>();
@@ -282,45 +276,8 @@ export class GameEngine {
     this.camera.add(this.gunCameraRig);
     this.scene.add(this.camera);
 
-    // Pre-allocate Tracer InstancedMesh
-    const tracerGeo = new THREE.CylinderGeometry(0.015, 0.015, 1.2, 4);
-    tracerGeo.rotateX(Math.PI / 2);
-    const tracerMat = new THREE.MeshBasicMaterial({ color: 0xffea78 });
-    this.tracerMesh = new THREE.InstancedMesh(tracerGeo, tracerMat, this.MAX_TRACERS);
-    this.tracerMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.scene.add(this.tracerMesh);
-
-    for (let i = 0; i < this.MAX_TRACERS; i++) {
-      this.tracerData.push({
-        pos: new THREE.Vector3(),
-        vel: new THREE.Vector3(),
-        life: 0,
-        active: false,
-      });
-      const dummy = new THREE.Matrix4().makeScale(0, 0, 0);
-      this.tracerMesh.setMatrixAt(i, dummy);
-    }
-    this.tracerMesh.instanceMatrix.needsUpdate = true;
-
-    // Pre-allocate Particle Pool
-    const partGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
-    const partMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    this.particleMesh = new THREE.InstancedMesh(partGeo, partMat, this.MAX_PARTICLES);
-    this.particleMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.scene.add(this.particleMesh);
-
-    for (let i = 0; i < this.MAX_PARTICLES; i++) {
-      this.particleData.push({
-        pos: new THREE.Vector3(),
-        vel: new THREE.Vector3(),
-        life: 0,
-        color: new THREE.Color(),
-        active: false,
-      });
-      const dummy = new THREE.Matrix4().makeScale(0, 0, 0);
-      this.particleMesh.setMatrixAt(i, dummy);
-    }
-    this.particleMesh.instanceMatrix.needsUpdate = true;
+    // Pre-allocate tracer and particle pools
+    this.effects = new EffectsPool(this.scene, () => this.graphicsTierApplied);
   }
 
   public setWeapon(weapon: WeaponDef) {
@@ -614,7 +571,7 @@ export class GameEngine {
 
     const hitPoint = closestHitBot ? closestHitBot.point : rayOrigin.clone().addScaledVector(aimDir, 100);
     if (!ctx.tracerSpawned) {
-      this.spawnTracer(muzzleWorld, hitPoint);
+      this.effects.spawnTracer(muzzleWorld, hitPoint, this.activeWeapon.bulletSpeed);
       ctx.tracerSpawned = true;
     }
 
@@ -633,7 +590,7 @@ export class GameEngine {
 
     if (!closestHitBot && !ctx.registered) {
       // Wall impact spark — one per trigger pull
-      this.spawnParticles(hitPoint, 6, 0xffe680);
+      this.effects.spawnParticles(hitPoint, 6, 0xffe680);
       ctx.registered = true; // consumed spark budget for this shot
     }
   }
@@ -670,7 +627,7 @@ export class GameEngine {
       opacity: 1,
     });
 
-    this.spawnParticles(point, 12, isHead ? 0xff3333 : 0xffaa00);
+    this.effects.spawnParticles(point, 12, isHead ? 0xff3333 : 0xffaa00);
 
     if (isKill) {
       this.kills++;
@@ -712,40 +669,6 @@ export class GameEngine {
     }
   }
 
-  private spawnTracer(from: THREE.Vector3, to: THREE.Vector3) {
-    const tracerCap = this.graphicsTierApplied === 'low' ? 16 : 32;
-    const tracer = this.tracerData.slice(0, tracerCap).find((t) => !t.active);
-    if (!tracer) return;
-    tracer.active = true;
-    tracer.pos.copy(from);
-    const dir = new THREE.Vector3().subVectors(to, from);
-    const len = dir.length();
-    dir.normalize();
-    tracer.vel.copy(dir).multiplyScalar(this.activeWeapon.bulletSpeed);
-    tracer.life = Math.min(0.25, len / this.activeWeapon.bulletSpeed);
-  }
-
-  private spawnParticles(pos: THREE.Vector3, count: number, hexColor: number) {
-    const particleCap = this.graphicsTierApplied === 'low' ? 32 : 64;
-    let spawned = 0;
-    for (let i = 0; i < particleCap; i++) {
-      if (spawned >= count) break;
-      const p = this.particleData[i];
-      if (!p.active) {
-        p.active = true;
-        p.pos.copy(pos);
-        p.vel.set(
-          (Math.random() - 0.5) * 5,
-          Math.random() * 4 + 1,
-          (Math.random() - 0.5) * 5
-        );
-        p.color.setHex(hexColor);
-        p.life = 0.35 + Math.random() * 0.2;
-        spawned++;
-      }
-    }
-  }
-
   private onBotFire(bot: BotState, aimDir: THREE.Vector3, targetId: string) {
     const muzzlePos = bot.pos.clone().add(new THREE.Vector3(0, 1.2, 0));
 
@@ -761,7 +684,7 @@ export class GameEngine {
       toPlayer.normalize();
 
       const hitPos = this.physics.pos.clone().add(new THREE.Vector3(0, 0.9, 0));
-      this.spawnTracer(muzzlePos, hitPos);
+      this.effects.spawnTracer(muzzlePos, hitPos, this.activeWeapon.bulletSpeed);
 
       // Hit chance evaluated via alignment & distance
       if (dist < 55 && aimDir.dot(toPlayer) > 0.94) {
@@ -803,7 +726,7 @@ export class GameEngine {
         toTarget.normalize();
 
         const hitPos = targetBot.pos.clone().add(new THREE.Vector3(0, 1.1, 0));
-        this.spawnTracer(muzzlePos, hitPos);
+        this.effects.spawnTracer(muzzlePos, hitPos, this.activeWeapon.bulletSpeed);
 
         if (dist < 50 && aimDir.dot(toTarget) > 0.92) {
           const damage = Math.round(bot.weapon.damage * (0.65 + Math.random() * 0.35));
@@ -917,53 +840,6 @@ export class GameEngine {
     }
   }
 
-  private updateTracersAndParticles(dt: number) {
-    // Tracers
-    let tracerNeedsUpdate = false;
-    const tracerCap = this.graphicsTierApplied === 'low' ? 16 : 32;
-    for (let i = 0; i < tracerCap; i++) {
-      const t = this.tracerData[i];
-      if (t.active) {
-        t.life -= dt;
-        t.pos.addScaledVector(t.vel, dt);
-        if (t.life <= 0) {
-          t.active = false;
-          const dummy = new THREE.Matrix4().makeScale(0, 0, 0);
-          this.tracerMesh.setMatrixAt(i, dummy);
-        } else {
-          const matrix = new THREE.Matrix4();
-          matrix.setPosition(t.pos);
-          this.tracerMesh.setMatrixAt(i, matrix);
-        }
-        tracerNeedsUpdate = true;
-      }
-    }
-    if (tracerNeedsUpdate) this.tracerMesh.instanceMatrix.needsUpdate = true;
-
-    // Particles
-    let partNeedsUpdate = false;
-    const particleCap = this.graphicsTierApplied === 'low' ? 32 : 64;
-    for (let i = 0; i < particleCap; i++) {
-      const p = this.particleData[i];
-      if (p.active) {
-        p.life -= dt;
-        p.vel.y -= 9.8 * dt;
-        p.pos.addScaledVector(p.vel, dt);
-        if (p.life <= 0) {
-          p.active = false;
-          const dummy = new THREE.Matrix4().makeScale(0, 0, 0);
-          this.particleMesh.setMatrixAt(i, dummy);
-        } else {
-          const matrix = new THREE.Matrix4();
-          matrix.setPosition(p.pos);
-          this.particleMesh.setMatrixAt(i, matrix);
-        }
-        partNeedsUpdate = true;
-      }
-    }
-    if (partNeedsUpdate) this.particleMesh.instanceMatrix.needsUpdate = true;
-  }
-
   private updatePendingHits(dt: number) {
     drainPendingHits(this.pendingHits, dt, (hit) => this.applyPlayerHit(hit));
   }
@@ -1068,7 +944,7 @@ export class GameEngine {
           if (this.gunRig) this.gunRig.group.visible = true;
           this.updatePlayerPhysics(dt);
           this.updateCameraAndWeapon(dt);
-          this.updateTracersAndParticles(dt);
+          this.effects.update(dt);
           this.updatePendingHits(dt);
 
           // Update Bots AI with Perception, LOS colliders, and Bot vs Bot targets
