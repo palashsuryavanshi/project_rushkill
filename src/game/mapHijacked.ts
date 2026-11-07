@@ -314,8 +314,9 @@ export function buildHijackedMap(): MapData {
     createSolidBox(1.4, 0.8, 2.6, at(6.2), 0, at(-21), matCrateNavy);
     createSolidBox(0.8, 2.5, 0.8, at(2.0), 0, at(-34.5), matHullWhite);
 
-    // Internal stair up to the upper room (14 treads, 0.33 rise, 0.8 run).
-    addStairRun(at(4.6), at(-23.4), m === 1 ? -1 : 1, 2.4, 14, 0.33, 0.8, matDarkCarbon);
+    // Internal stair up to the upper room. 15 treads at 4.6/15 m rise land flush
+    // with the floor strip at the bow/stern face, so the top node is fully supported.
+    addStairRun(at(4.6), at(-23.4), m === 1 ? -1 : 1, 2.4, 15, 4.6 / 15, 0.8, matDarkCarbon);
 
     // External stair on the walkway, landing at upper floor height.
     addStairRun(at(10.2), at(-47.2), m === 1 ? 1 : -1, 2.0, 14, 0.33, 0.8, matChromeRailing);
@@ -331,6 +332,7 @@ export function buildHijackedMap(): MapData {
     createSolidBox(0.3, 3.6, 16, at(-7), 4.6, at(-27), matHullWhite);
     createSolidBox(0.3, 3.6, 14.4, at(7), 4.6, at(-26.2), matHullWhite);
     createSolidBox(10.4, 1.0, 0.15, at(-1.8), 4.6, at(-35), matChromeRailing);
+    createSolidBox(1.2, 1.0, 0.15, at(6.4), 4.6, at(-35), matChromeRailing);
     createSolidBox(14.0, 1.0, 0.15, 0, 4.6, at(-19), matChromeRailing);
 
     // Ceiling and upper cover.
@@ -392,6 +394,9 @@ export function buildHijackedMap(): MapData {
   }
   createSolidBox(0.15, 1.0, 8, 8.55, 0, 14, matChromeRailing);
   createSolidBox(0.15, 1.0, 8, -8.55, 0, -14, matChromeRailing);
+  // Narrow outboard service ledge keeps the port walkway a continuous bot lane
+  // across the maintenance stairwell cut (z -18..-10).
+  createSolidBox(1.0, 0.4, 8, -11.7, -0.4, -14, matTeakDeck);
 
   // ==========================================
   // 5. BELOW-DECK MAINTENANCE TUNNEL
@@ -555,15 +560,17 @@ export function buildHijackedMap(): MapData {
     { id: 'bow_hall', pos: v(0, 0.1, -27), neighbors: ['bow_cabin_door', 'bow_port_room', 'bow_star_room', 'bow_stair_bottom', 'center_north'], area: 'bow' },
     { id: 'bow_port_room', pos: v(-5.5, 0.1, -27), neighbors: ['bow_hall', 'port_north'], area: 'bow' },
     { id: 'bow_star_room', pos: v(5.5, 0.1, -27), neighbors: ['bow_hall', 'star_north'], area: 'bow' },
-    { id: 'bow_stair_bottom', pos: v(4.6, 0.1, -23.2), neighbors: ['bow_hall', 'bow_stair_top'], area: 'bow' },
-    { id: 'bow_stair_top', pos: v(4.6, 4.6, -33.8), neighbors: ['bow_stair_bottom', 'upper_bow', 'bow_ext_top'], area: 'upper' },
-    { id: 'upper_bow', pos: v(0, 4.6, -28), neighbors: ['bow_stair_top'], area: 'upper' },
+    { id: 'bow_stair_bottom', pos: v(4.6, 0.1, -23.8), neighbors: ['bow_hall', 'bow_stair_top'], area: 'bow' },
+    { id: 'bow_stair_top', pos: v(4.6, 4.6, -34.6), neighbors: ['bow_stair_bottom', 'upper_bow_land', 'bow_ext_top'], area: 'upper' },
+    { id: 'upper_bow_land', pos: v(3.0, 4.6, -34.6), neighbors: ['bow_stair_top', 'upper_bow'], area: 'upper' },
+    { id: 'upper_bow', pos: v(0, 4.6, -28), neighbors: ['upper_bow_land'], area: 'upper' },
     { id: 'bow_ext_bottom', pos: v(10.2, 0.1, -48.5), neighbors: ['bow_heli'], area: 'bow' },
     { id: 'bow_ext_top', pos: v(10.2, 4.6, -35), neighbors: ['bow_stair_top'], area: 'upper' },
 
     // Port walkway
-    { id: 'port_north', pos: v(-10.2, 0.1, -27), neighbors: ['bow_port', 'bow_port_room'], area: 'midship' },
-    { id: 'port_mid', pos: v(-10.2, 0.1, -7), neighbors: ['pool_edge', 'port_center', 'maint_port_bottom'], area: 'midship' },
+    { id: 'port_north', pos: v(-10.2, 0.1, -26.5), neighbors: ['bow_port', 'bow_port_room', 'port_bridge'], area: 'midship' },
+    { id: 'port_bridge', pos: v(-11.8, 0.1, -15), neighbors: ['port_north', 'port_mid'], area: 'midship' },
+    { id: 'port_mid', pos: v(-10.2, 0.1, -7), neighbors: ['port_bridge', 'pool_edge', 'port_center', 'maint_port_bottom'], area: 'midship' },
     { id: 'port_center', pos: v(-10.2, 0.1, 4), neighbors: ['port_mid', 'port_aft'], area: 'midship' },
     { id: 'port_aft', pos: v(-10.2, 0.1, 15), neighbors: ['port_center', 'port_south'], area: 'midship' },
     { id: 'port_south', pos: v(-10.2, 0.1, 24), neighbors: ['port_aft', 'port_deck', 'stern_port_room'], area: 'midship' },
@@ -594,9 +601,10 @@ export function buildHijackedMap(): MapData {
     { id: 'stern_hall', pos: v(0, 0.1, 27), neighbors: ['stern_cabin_door', 'stern_port_room', 'stern_star_room', 'stern_stair_bottom'], area: 'stern' },
     { id: 'stern_port_room', pos: v(-5.5, 0.1, 27), neighbors: ['stern_hall', 'port_south'], area: 'stern' },
     { id: 'stern_star_room', pos: v(5.5, 0.1, 27), neighbors: ['stern_hall', 'star_tail'], area: 'stern' },
-    { id: 'stern_stair_bottom', pos: v(-4.6, 0.1, 23.2), neighbors: ['stern_hall', 'stern_stair_top'], area: 'stern' },
-    { id: 'stern_stair_top', pos: v(-4.6, 4.6, 33.8), neighbors: ['stern_stair_bottom', 'upper_stern', 'stern_ext_top'], area: 'upper' },
-    { id: 'upper_stern', pos: v(0, 4.6, 28), neighbors: ['stern_stair_top'], area: 'upper' },
+    { id: 'stern_stair_bottom', pos: v(-4.6, 0.1, 23.8), neighbors: ['stern_hall', 'stern_stair_top'], area: 'stern' },
+    { id: 'stern_stair_top', pos: v(-4.6, 4.6, 34.6), neighbors: ['stern_stair_bottom', 'upper_stern_land', 'stern_ext_top'], area: 'upper' },
+    { id: 'upper_stern_land', pos: v(-3.0, 4.6, 34.6), neighbors: ['stern_stair_top', 'upper_stern'], area: 'upper' },
+    { id: 'upper_stern', pos: v(0, 4.6, 28), neighbors: ['upper_stern_land'], area: 'upper' },
     { id: 'port_aftdeck', pos: v(-11.7, 0.1, 49), neighbors: ['port_stern', 'stern_ext_bottom'], area: 'stern' },
     { id: 'stern_ext_bottom', pos: v(-10.2, 0.1, 48.5), neighbors: ['port_aftdeck'], area: 'stern' },
     { id: 'stern_ext_top', pos: v(-10.2, 4.6, 35), neighbors: ['stern_stair_top'], area: 'upper' },
