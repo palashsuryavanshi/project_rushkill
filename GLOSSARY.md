@@ -60,6 +60,10 @@ _Avoid_: falloff, damage drop-off
 The sniper's 20% base-damage loss for every full 30 m beyond the first. Range itself is unlimited.
 _Avoid_: damage drop-off, range limit
 
+**Bullet blocker**:
+Geometry that stops a round: every solid collider plus the tinted glass panes. Glass blocks bullets but not movement.
+_Avoid_: wall, obstacle
+
 **Jump repeat**:
 A browser `keydown` repetition while a key is held. Jump intent ignores repeats so one press is one jump.
 _Avoid_: auto-bhop, key spam

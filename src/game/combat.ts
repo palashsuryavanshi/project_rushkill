@@ -60,6 +60,41 @@ export interface BotHit {
   dist: number;
 }
 
+/** True when the world blocks the shot before it reaches the target. */
+export function isBlockedByCover(coverDist: number | null, targetDist: number): boolean {
+  return coverDist !== null && coverDist < targetDist;
+}
+
+function pointInsideBox(p: THREE.Vector3, min: THREE.Vector3, max: THREE.Vector3): boolean {
+  return (
+    p.x >= min.x && p.x <= max.x &&
+    p.y >= min.y && p.y <= max.y &&
+    p.z >= min.z && p.z <= max.z
+  );
+}
+
+/**
+ * Nearest bullet-blocking box along the ray, or null when nothing is hit.
+ * Boxes containing the origin are skipped so a player standing in decorative
+ * geometry does not shoot their own cover.
+ */
+export function findClosestBoxHit(
+  origin: THREE.Vector3,
+  dir: THREE.Vector3,
+  boxes: readonly { min: THREE.Vector3; max: THREE.Vector3 }[],
+  maxRange: number = RAY_FAR
+): number | null {
+  let closest: number | null = null;
+
+  for (const box of boxes) {
+    if (pointInsideBox(origin, box.min, box.max)) continue;
+    const hit = rayBox(origin, dir, box.min, box.max, RAY_NEAR, maxRange);
+    if (hit !== null && (closest === null || hit < closest)) closest = hit;
+  }
+
+  return closest;
+}
+
 /**
  * Rotation-agnostic padded AABB hit test against every alive bot.
  * Prefers the head box when it is at least as close as the body box (within

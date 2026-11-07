@@ -44,12 +44,16 @@ Finish the gameplay design that was deferred while the engine was split. The goa
 
 **Jump repeat.** Browsers repeat `keydown` while Space is held. Those repeats were re-buffering a jump on every frame, so holding Space chained jumps and carried far more distance than a single jump. Only a non-repeat Space press now queues a jump.
 
+## Follow-up: cover and bullet blockers
+
+Every solid collider stops a round. Glass panes stay walkthroughable but are registered as bullet blockers too. Player shots compare the nearest bot hit against the nearest blocker and use whichever is closer; a blocked shot shows a tracer and wall spark with no damage, hitmarker, or kill credit. Bot fire checks cover from its muzzle before dealing damage, and bot line-of-sight uses the blocker set, so bots neither see nor shoot through glass.
+
 ## Bug fixed in the same pass
 
 `GameEngine` defined `onBlur` and removed it during cleanup but never registered it, so held keys and ADS could stick after the window lost focus. The listener is now registered.
 
 ## Verification
 
-- Unit tests cover the shotgun cutoff (including the pellet-count edge case), full-damage long-range AR/SMG shots, sniper falloff per 30 m step, the leg hitbox, unlimited sniper range, scoped sniper spread, the jump apex, single-launch jump repeat, safe-spawn selection, the respawn progress curve, health regen (delay, rate, cap, dead players), and the respawn loadout.
+- Unit tests cover the shotgun cutoff (including the pellet-count edge case), full-damage long-range AR/SMG shots, sniper falloff per 30 m step, the leg hitbox, unlimited sniper range, scoped sniper spread, the jump apex, single-launch jump repeat, bullet-blocking walls and glass, safe-spawn selection, the respawn progress curve, health regen (delay, rate, cap, dead players), and the respawn loadout.
 - `tsc --noEmit`, the full node test suite, and the Vite production build all pass.
 - Browser smoke test: title screen and match start render with no console errors.

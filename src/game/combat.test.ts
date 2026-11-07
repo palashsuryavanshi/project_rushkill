@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import {
   rayBox,
   findClosestBotHit,
+  findClosestBoxHit,
+  isBlockedByCover,
   applySpread,
   computeShotSpread,
   drainPendingHits,
@@ -98,6 +100,36 @@ test('scoped sniper spread ignores the generic stance penalty', () => {
   const sniper = getWeaponById('longbow');
   assert.equal(computeShotSpread(sniper, true, 0, false), sniper.adsSpread);
   assert.equal(computeShotSpread(sniper, true, 12, true), sniper.adsSpread);
+});
+
+test('findClosestBoxHit returns the nearest wall along the shot', () => {
+  const boxes = [
+    { min: new THREE.Vector3(-1, 0, 10), max: new THREE.Vector3(1, 3, 10.4) },
+    { min: new THREE.Vector3(-1, 0, 5), max: new THREE.Vector3(1, 3, 5.4) },
+  ];
+  const dist = findClosestBoxHit(
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(0, 0, 1),
+    boxes
+  );
+  assert.ok(dist !== null);
+  assert.ok(Math.abs(dist - 5) < 1e-6, `expected 5, got ${dist}`);
+});
+
+test('findClosestBoxHit ignores geometry the shooter is standing inside', () => {
+  const boxes = [{ min: new THREE.Vector3(-1, -1, -1), max: new THREE.Vector3(1, 1, 1) }];
+  const dist = findClosestBoxHit(
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0, 0, 1),
+    boxes
+  );
+  assert.equal(dist, null);
+});
+
+test('cover closer than the target blocks the shot, cover behind it does not', () => {
+  assert.equal(isBlockedByCover(4, 10), true);
+  assert.equal(isBlockedByCover(12, 10), false);
+  assert.equal(isBlockedByCover(null, 10), false);
 });
 
 test('applySpread keeps a unit direction and is deterministic with an injected rng', () => {

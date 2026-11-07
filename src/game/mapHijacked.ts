@@ -16,6 +16,8 @@ export interface WaypointNode {
 export interface MapData {
   sceneGroup: THREE.Group;
   colliders: BoxCollider[];
+  /** Solid geometry plus glass: anything a bullet must not pass through. */
+  bulletBlockers: BoxCollider[];
   spawnPoints: THREE.Vector3[];
   waypoints: WaypointNode[];
   update: (time: number, dt: number) => void;
@@ -24,9 +26,17 @@ export interface MapData {
 export function buildHijackedMap(): MapData {
   const root = new THREE.Group();
   const colliders: BoxCollider[] = [];
+  const bulletBlockers: BoxCollider[] = [];
 
   function addCollider(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number) {
     colliders.push({
+      min: new THREE.Vector3(minX, minY, minZ),
+      max: new THREE.Vector3(maxX, maxY, maxZ),
+    });
+  }
+
+  function addBulletBlocker(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number) {
+    bulletBlockers.push({
       min: new THREE.Vector3(minX, minY, minZ),
       max: new THREE.Vector3(maxX, maxY, maxZ),
     });
@@ -45,7 +55,7 @@ export function buildHijackedMap(): MapData {
     y: number,
     z: number,
     mat: THREE.Material,
-    options?: { noCollider?: boolean; castShadow?: boolean; receiveShadow?: boolean; renderOrder?: number }
+    options?: { noCollider?: boolean; blocksBullets?: boolean; castShadow?: boolean; receiveShadow?: boolean; renderOrder?: number }
   ): THREE.Mesh {
     const geo = new THREE.BoxGeometry(w, h, d);
     const mesh = new THREE.Mesh(geo, mat);
@@ -64,6 +74,10 @@ export function buildHijackedMap(): MapData {
 
     if (!options?.noCollider) {
       addCollider(x - w / 2, y, z - d / 2, x + w / 2, y + h, z + d / 2);
+    }
+    // Solid boxes block bullets by default. Glass opts in while staying walkthroughable.
+    if (options?.blocksBullets ?? !options?.noCollider) {
+      addBulletBlocker(x - w / 2, y, z - d / 2, x + w / 2, y + h, z + d / 2);
     }
     return mesh;
   }
@@ -277,12 +291,12 @@ export function buildHijackedMap(): MapData {
   // Port Side Wall (X: -8.5) with large tinted glass windows & side doors
   createSolidBox(0.4, 4.2, 14, -8.5, 0, -15, matHullWhite);
   createSolidBox(0.4, 4.2, 14, -8.5, 0, 15, matHullWhite);
-  createSolidBox(0.4, 3.8, 16, -8.5, 0.2, 0, matGlassTinted, { renderOrder: 1, noCollider: true }); // mid glass section (no collider: walkthroughable & shootthroughable)
+  createSolidBox(0.4, 3.8, 16, -8.5, 0.2, 0, matGlassTinted, { renderOrder: 1, noCollider: true, blocksBullets: true }); // mid glass section (no collider: walkthroughable & shootthroughable)
 
   // Starboard Side Wall (X: 8.5) with windows
   createSolidBox(0.4, 4.2, 14, 8.5, 0, -15, matHullWhite);
   createSolidBox(0.4, 4.2, 14, 8.5, 0, 15, matHullWhite);
-  createSolidBox(0.4, 3.8, 16, 8.5, 0.2, 0, matGlassTinted, { renderOrder: 1, noCollider: true });
+  createSolidBox(0.4, 3.8, 16, 8.5, 0.2, 0, matGlassTinted, { renderOrder: 1, noCollider: true, blocksBullets: true });
 
   // Interior Luxury Bar Counter (Z = 0)
   createSolidBox(5.0, 1.2, 1.6, 0, 0, 0, matDarkCarbon);
@@ -330,8 +344,8 @@ export function buildHijackedMap(): MapData {
   createSolidBox(15, 0.4, 34, 0, 8.2, 0, matHullWhite);
 
   // Upper Bridge Cabin Walls - start at Y=4.6 (top of upper deck slab)
-  createSolidBox(14, 3.6, 0.4, 0, 4.6, -16, matGlassTinted, { renderOrder: 1, noCollider: true }); // Front observation bridge glass
-  createSolidBox(14, 3.6, 0.4, 0, 4.6, 16, matGlassTinted, { renderOrder: 1, noCollider: true }); // Rear observation glass
+  createSolidBox(14, 3.6, 0.4, 0, 4.6, -16, matGlassTinted, { renderOrder: 1, noCollider: true, blocksBullets: true }); // Front observation bridge glass
+  createSolidBox(14, 3.6, 0.4, 0, 4.6, 16, matGlassTinted, { renderOrder: 1, noCollider: true, blocksBullets: true }); // Rear observation glass
 
   // Port side upper wall (X = -7) with doorways at stairs (Z = -18, 18)
   createSolidBox(0.4, 3.6, 10, -7.0, 4.6, -21, matHullWhite); // Z: -26 to -16
@@ -593,7 +607,7 @@ export function buildHijackedMap(): MapData {
 
   // --- Bake static boxes into one merged mesh per material+renderOrder bucket ---
   // Dev counters
-  if (import.meta.env.DEV) {
+  if (import.meta.env?.DEV) {
     console.log(`PRE-BAKE COLLIDERS: ${colliders.length}`);
     console.log(`PRE-BAKE PENDING BOXES: ${pendingBoxes.length}`);
   }
@@ -631,7 +645,7 @@ export function buildHijackedMap(): MapData {
 
   bakeMergedStatic(buckets, root);
 
-  if (import.meta.env.DEV) {
+  if (import.meta.env?.DEV) {
     console.log(`POST-BAKE COLLIDERS: ${colliders.length}`);
     console.log(`POST-BAKE ROOT CHILDREN: ${root.children.length}`);
   }
@@ -639,6 +653,7 @@ export function buildHijackedMap(): MapData {
   return {
     sceneGroup: root,
     colliders,
+    bulletBlockers,
     spawnPoints,
     waypoints,
     update,

@@ -5,7 +5,7 @@ import { RUSH_WEAPONS, getWeaponById, calculateShotTotalDamage } from './weapons
 import { buildHijackedMap, MapData, BoxCollider } from './mapHijacked';
 import { buildGunModel, GunRig } from './gunModels';
 import { BotState, BotPersonality, createBot, updateBotAI, triggerBotHit } from './botAI';
-import { findClosestBotHit, applySpread, computeShotSpread, drainPendingHits, type PendingHit } from './combat';
+import { findClosestBotHit, findClosestBoxHit, isBlockedByCover, applySpread, computeShotSpread, drainPendingHits, RAY_FAR, type PendingHit } from './combat';
 import { PlayerPhysics, shouldQueueJump } from './playerPhysics';
 import { PointerLockController } from './pointerLock';
 import { EffectsPool } from './effectsPool';
@@ -582,10 +582,14 @@ export class GameEngine {
     const rayOrigin = this.camera.position.clone();
 
     // Sniper rounds have no range ceiling; other guns stop at the map clip.
-    const maxRange = this.activeWeapon.category === 'Sniper' ? Infinity : undefined;
+    const range = this.activeWeapon.category === 'Sniper' ? Infinity : RAY_FAR;
 
     // Padded, rotation-agnostic AABB hit test.
-    const closestHitBot = findClosestBotHit(rayOrigin, aimDir, this.bots, maxRange);
+    const closestHitBot = findClosestBotHit(rayOrigin, aimDir, this.bots, range);
+
+    // Cover: walls and glass stop the round before it reaches the bot.
+    const coverDist = findClosestBoxHit(rayOrigin, aimDir, this.mapData.bulletBlockers, range);
+    const blocked = isBlockedByCover(coverDist, closestHitBot ? closestHitBot.dist : Infinity);
 
     // One tracer per trigger pull — never spawn parallel pellets visually
     const muzzleWorld = new THREE.Vector3();
@@ -595,14 +599,18 @@ export class GameEngine {
       muzzleWorld.copy(rayOrigin);
     }
 
-    const hitPoint = closestHitBot ? closestHitBot.point : rayOrigin.clone().addScaledVector(aimDir, 100);
+    const hitPoint = blocked
+      ? rayOrigin.clone().addScaledVector(aimDir, coverDist!)
+      : closestHitBot
+        ? closestHitBot.point
+        : rayOrigin.clone().addScaledVector(aimDir, 100);
     if (!ctx.tracerSpawned) {
       this.effects.spawnTracer(muzzleWorld, hitPoint, this.activeWeapon.bulletSpeed);
       ctx.tracerSpawned = true;
     }
 
     // A shot registers at most once; impact queued as a projectile with travel time.
-    if (closestHitBot && !ctx.registered) {
+    if (!blocked && closestHitBot && !ctx.registered) {
       const { bot, isHead, point, dist } = closestHitBot;
       const damage = calculateShotTotalDamage(this.activeWeapon, isHead, dist);
 
@@ -617,8 +625,8 @@ export class GameEngine {
       }
     }
 
-    if (!closestHitBot && !ctx.registered) {
-      // Wall impact spark — one per trigger pull
+    if ((blocked || !closestHitBot) && !ctx.registered) {
+      // Cover / wall impact spark — one per trigger pull, no damage or hitmarker.
       this.effects.spawnParticles(hitPoint, 6, 0xffe680);
       ctx.registered = true; // consumed spark budget for this shot
     }
@@ -714,11 +722,17 @@ export class GameEngine {
       const dist = toPlayer.length();
       toPlayer.normalize();
 
-      const hitPos = this.physics.pos.clone().add(new THREE.Vector3(0, 0.9, 0));
+      // Cover blocks bot fire too: stop the tracer and deal no damage.
+      const coverDist = findClosestBoxHit(muzzlePos, toPlayer, this.mapData.bulletBlockers, dist + 1);
+      const blocked = isBlockedByCover(coverDist, dist);
+
+      const hitPos = blocked
+        ? muzzlePos.clone().addScaledVector(toPlayer, coverDist!)
+        : this.physics.pos.clone().add(new THREE.Vector3(0, 0.9, 0));
       this.effects.spawnTracer(muzzlePos, hitPos, this.activeWeapon.bulletSpeed);
 
       // Hit chance evaluated via alignment & distance
-      if (dist < 55 && aimDir.dot(toPlayer) > 0.94) {
+      if (!blocked && dist < 55 && aimDir.dot(toPlayer) > 0.94) {
         // Player takes realistic damage
         const damage = Math.round(bot.weapon.damage * (0.6 + Math.random() * 0.4));
         this.hp -= damage;
@@ -739,10 +753,15 @@ export class GameEngine {
         const dist = toTarget.length();
         toTarget.normalize();
 
-        const hitPos = targetBot.pos.clone().add(new THREE.Vector3(0, 1.1, 0));
+        const coverDist = findClosestBoxHit(muzzlePos, toTarget, this.mapData.bulletBlockers, dist + 1);
+        const blocked = isBlockedByCover(coverDist, dist);
+
+        const hitPos = blocked
+          ? muzzlePos.clone().addScaledVector(toTarget, coverDist!)
+          : targetBot.pos.clone().add(new THREE.Vector3(0, 1.1, 0));
         this.effects.spawnTracer(muzzlePos, hitPos, this.activeWeapon.bulletSpeed);
 
-        if (dist < 50 && aimDir.dot(toTarget) > 0.92) {
+        if (!blocked && dist < 50 && aimDir.dot(toTarget) > 0.92) {
           const damage = Math.round(bot.weapon.damage * (0.65 + Math.random() * 0.35));
           const isKilled = triggerBotHit(targetBot, damage, false, bot.id);
           if (isKilled) {
@@ -1053,7 +1072,8 @@ export class GameEngine {
               this.mapData.colliders,
               (b, aimDir, targetId) => {
                 this.onBotFire(b, aimDir, targetId);
-              }
+              },
+              this.mapData.bulletBlockers
             );
           }
 

@@ -554,7 +554,9 @@ export function updateBotAI(
   potentialTargets: TargetEntity[],
   waypoints: WaypointNode[],
   colliders: BoxCollider[],
-  onBotShoot: (bot: BotState, aimDir: THREE.Vector3, targetId: string) => void
+  onBotShoot: (bot: BotState, aimDir: THREE.Vector3, targetId: string) => void,
+  /** Vision blockers, which include glass that bullets can hit but players can walk through. */
+  sightBlockers: BoxCollider[] = colliders
 ) {
   // 1. Handle Death / Respawn State
   if (bot.isDead) {
@@ -688,7 +690,7 @@ export function updateBotAI(
       const targetEye = { x: targetPos.x, y: targetPos.y + 1.5, z: targetPos.z };
 
       // Line of sight raycast against colliders!
-      const hasLos = isLineOfSightClear(eyePos, targetEye, colliders);
+      const hasLos = isLineOfSightClear(eyePos, targetEye, sightBlockers);
 
       if (hasLos) {
         if (dist < closestVisibleDist) {
@@ -837,7 +839,7 @@ export function updateBotAI(
           return !isLineOfSightClear(
             { x: w.pos.x, y: w.pos.y + 1.2, z: w.pos.z },
             { x: threatPos.x, y: threatPos.y + 1.2, z: threatPos.z },
-            colliders
+            sightBlockers
           );
         });
         if (coverWp) {
