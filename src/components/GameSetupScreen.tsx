@@ -356,12 +356,7 @@ export const GameSetupScreen: React.FC<GameSetupScreenProps> = ({
                   >
                     <div>
                       <span className="text-xs font-black uppercase text-white block">{cat}s</span>
-                      <span className="text-[10px] font-mono text-slate-400">
-                        {cat === 'AR' && 'MCW, Holger, SVA, MTZ'}
-                        {cat === 'SMG' && 'Rival-9, Striker, WSP, AMR9'}
-                        {cat === 'Shotgun' && 'Lockwood 680, Haymaker, Riveter'}
-                        {cat === 'Sniper' && 'Longbow, KV, KATT-AMR'}
-                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">{cat}</span>
                     </div>
                     <div
                       className={`w-5 h-5 rounded-md flex items-center justify-center border text-xs font-bold ${

@@ -7,6 +7,28 @@ import { sound } from './audio';
 
 export type BotPersonality = 'assault' | 'sniper' | 'defender' | 'flanker' | 'support' | 'balanced';
 
+/**
+ * Weapon id for a bot personality. Every id must exist in RUSH_WEAPONS:
+ * the armory keeps exactly one weapon per class.
+ */
+export function pickBotWeaponId(personality: BotPersonality, index: number): string {
+  switch (personality) {
+    case 'assault':
+      return index % 2 === 0 ? 'rival_9' : 'mcw';
+    case 'sniper':
+      return 'longbow';
+    case 'defender':
+      return 'mcw';
+    case 'flanker':
+      return index % 2 === 0 ? 'lockwood_680' : 'rival_9';
+    case 'support':
+      return 'lockwood_680';
+    case 'balanced':
+    default:
+      return 'mcw';
+  }
+}
+
 export type AwarenessState = 'unaware' | 'suspicious' | 'alert' | 'engaged' | 'searching' | 'recovering';
 
 export interface TargetEntity {
@@ -272,33 +294,27 @@ export function createBot(
   const root = new THREE.Group();
   root.position.copy(startPos);
 
-  let weaponId = 'mcw';
+  const weaponId = pickBotWeaponId(personality, index);
   let skinColor = 0x3b82f6; // tactical blue
 
   switch (personality) {
     case 'assault':
-      weaponId = index % 2 === 0 ? 'rival_9' : 'mtz_556';
       skinColor = 0xef4444; // red
       break;
     case 'sniper':
-      weaponId = index % 2 === 0 ? 'longbow' : 'kv_inhibitor';
       skinColor = 0x8b5cf6; // purple
       break;
     case 'defender':
-      weaponId = 'holger_556';
       skinColor = 0x10b981; // emerald
       break;
     case 'flanker':
-      weaponId = index % 2 === 0 ? 'striker' : 'lockwood_680';
       skinColor = 0xf59e0b; // amber
       break;
     case 'support':
-      weaponId = 'amr9';
       skinColor = 0x06b6d4; // cyan
       break;
     case 'balanced':
     default:
-      weaponId = 'mcw';
       skinColor = 0x3b82f6; // blue
       break;
   }

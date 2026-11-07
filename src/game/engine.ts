@@ -828,7 +828,8 @@ export class GameEngine {
 
   private updatePlayerPhysics(dt: number) {
     // Continuous fire for automatic weapons
-    if (this.mouseButtonsHeld.has(0) && (this.activeWeapon.category === 'AR' || this.activeWeapon.category === 'SMG' || this.activeWeapon.id === 'riveter')) {
+    if (this.mouseButtonsHeld.has(0) && (this.activeWeapon.category === 'AR' || this.activeWeapon.category === 'SMG')) {
+
       this.tryFireWeapon();
     }
 

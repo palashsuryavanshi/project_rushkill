@@ -85,7 +85,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
             ACTIVE LOADOUT:
           </span>
           <span className="text-amber-400 font-bold uppercase">
-            {selectedWeapon.name} ({selectedWeapon.category})
+            {selectedWeapon.name}
           </span>
         </div>
 

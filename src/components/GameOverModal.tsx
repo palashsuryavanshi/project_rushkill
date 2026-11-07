@@ -83,7 +83,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         <div className="bg-slate-900/60 border border-slate-800/80 px-4 py-2.5 rounded-xl flex items-center justify-between text-xs font-mono">
           <span className="text-slate-400">FAVORITE WEAPON:</span>
           <span className="text-amber-400 font-bold">
-            {weapon.name} ({weapon.category})
+            {weapon.name}
           </span>
         </div>
 

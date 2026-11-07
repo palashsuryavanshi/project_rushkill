@@ -5,9 +5,24 @@ import {
   isPointInVisionCone,
   calculateReactionDelay,
   normalizeAngleDiff,
+  pickBotWeaponId,
   DIFFICULTY_SETTINGS,
 } from './botAI';
+import type { BotPersonality } from './botAI';
+import { RUSH_WEAPONS } from './weapons';
 import { BoxCollider } from './mapHijacked';
+
+test('every bot personality picks a weapon that still exists', () => {
+  const personalities: BotPersonality[] = ['assault', 'sniper', 'defender', 'flanker', 'support', 'balanced'];
+  const ids = new Set(RUSH_WEAPONS.map((w) => w.id));
+
+  for (const personality of personalities) {
+    for (const index of [0, 1]) {
+      const id = pickBotWeaponId(personality, index);
+      assert.ok(ids.has(id), `${personality} picked missing weapon ${id}`);
+    }
+  }
+});
 
 test('isLineOfSightClear returns true when no obstacles intersect ray', () => {
   const from = { x: 0, y: 1.6, z: -20 };

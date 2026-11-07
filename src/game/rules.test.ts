@@ -3,13 +3,18 @@ import assert from 'node:assert/strict';
 import { evaluateKillScore, calculateKd, calculateAccuracy, checkMatchEnd } from './rules';
 import { RUSH_WEAPONS, getWeaponById, calculateShotDamage, calculateShotTotalDamage } from './weapons';
 
-test('Rush weapon definitions contain all 4 categories', () => {
-  const categories = new Set(RUSH_WEAPONS.map((w) => w.category));
-  assert.equal(categories.has('AR'), true);
-  assert.equal(categories.has('SMG'), true);
-  assert.equal(categories.has('Shotgun'), true);
-  assert.equal(categories.has('Sniper'), true);
-  assert.equal(RUSH_WEAPONS.length >= 12, true);
+test('the armory holds exactly one weapon per class', () => {
+  assert.equal(RUSH_WEAPONS.length, 4);
+  const categories = RUSH_WEAPONS.map((w) => w.category).sort();
+  assert.deepEqual(categories, ['AR', 'SMG', 'Shotgun', 'Sniper']);
+});
+
+test('weapons are named by class only', () => {
+  for (const w of RUSH_WEAPONS) assert.equal(w.name, w.category);
+});
+
+test('the kept weapon ids are MCW, Rival-9, Lockwood 680, Longbow', () => {
+  assert.deepEqual(RUSH_WEAPONS.map((w) => w.id).sort(), ['lockwood_680', 'longbow', 'mcw', 'rival_9']);
 });
 
 test('calculateShotDamage applies headshot multipliers correctly', () => {

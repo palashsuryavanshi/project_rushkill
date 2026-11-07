@@ -167,7 +167,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-400">EQUIPPED:</span>
             <span className="px-3 py-1 rounded bg-slate-900 border border-slate-700 font-bold text-amber-400 text-sm">
-              {selectedWeapon.name} ({selectedWeapon.category})
+              {selectedWeapon.name}
             </span>
           </div>
 

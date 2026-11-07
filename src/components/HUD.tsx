@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PlayerStats, WeaponDef, KillfeedEntry, StreakBanner, HitmarkerData, FloatingDamage } from '../game/types';
 import { respawnProgress } from '../game/respawn';
+import { formatKillfeed } from '../game/killfeed';
 import { Volume2, VolumeX, Pause, Zap, Award } from 'lucide-react';
 import { sound } from '../game/audio';
 
@@ -114,7 +115,7 @@ export const HUD: React.FC<HUDProps> = ({
             <div className="absolute w-1.5 h-1.5 rounded-full bg-black/80 translate-x-8" />
 
             <div className="absolute bottom-6 font-mono text-[10px] tracking-widest text-emerald-400 font-bold bg-black/70 px-2 py-0.5 rounded">
-              .50 CAL OPTIC • {weapon.name}
+              SNIPER OPTIC
             </div>
           </div>
         </div>
@@ -331,12 +332,12 @@ export const HUD: React.FC<HUDProps> = ({
                 : 'bg-slate-950/75 border-slate-800 text-slate-300'
             }`}
           >
-            <span className="font-bold truncate max-w-[80px]">{entry.killer}</span>
-            <span className="text-[10px] px-1 py-0.2 rounded bg-black/50 text-slate-400 border border-slate-700/60 mx-1 flex items-center gap-1">
-              {entry.weapon}
-              {entry.isHeadshot && <span className="text-yellow-400 font-bold">HS</span>}
-            </span>
-            <span className="truncate max-w-[80px] text-right">{entry.victim}</span>
+            <span className="font-bold truncate max-w-[80px]">{formatKillfeed(entry)}</span>
+            {entry.isHeadshot && (
+              <span className="text-[10px] px-1 py-0.2 rounded bg-black/50 text-yellow-400 border border-slate-700/60 font-bold">
+                HS
+              </span>
+            )}
           </div>
         ))}
       </div>

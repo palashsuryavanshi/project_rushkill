@@ -112,7 +112,7 @@ export const LoadoutScreen: React.FC<LoadoutScreenProps> = ({
                     : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-slate-500'
                 }`}
               >
-                {cat}s
+                {cat}
               </button>
             ))}
           </div>
@@ -169,7 +169,7 @@ export const LoadoutScreen: React.FC<LoadoutScreenProps> = ({
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-400 font-mono">SELECTED:</span>
             <span className="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 font-bold text-amber-400 text-sm">
-              {selectedWeapon.name} ({selectedWeapon.category}) • {selectedWeapon.features}
+              {selectedWeapon.name} • {selectedWeapon.features}
             </span>
           </div>
 
