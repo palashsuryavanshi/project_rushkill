@@ -89,13 +89,13 @@ Top-down, bow at the top. Dimensions in metres. The hull rails stay at x ±12.2 
 
 **Bow cabin, z −36..−18, x −8.5..8.5.** Ground floor y 0..4.2, upper floor y 4.6..8.2.
 
-- Three ground rooms: a central hall (x −3..3) and port/starboard rooms (x −8.5..−3 and 3..8.5). Front doorway (4 m wide) centred at z −36; rear doorway at z −18; side doorways to both walkways at z −27.
+- Three ground rooms: a central hall (x −3..3) and port/starboard rooms (x −8.5..−3 and 3..8.5). Front doorway (4 m wide) centred at z −36; rear doorway at z −18; 2 m side doorways to both walkways centred at z −27 (opening z −28..−26), with a 4 m glazed window at z −33..−29 beside each doorway.
 - Ground cover: bar counter in the port room, sofas in the starboard room, a partition column in the hall.
-- Internal stair: x 5.8, rising from z −23.4 (y 0) to z −34.6 (y 4.6), 14 treads at 0.33 m rise and 0.8 m run. This fits inside the 18 m cabin and keeps every step inside the bots' reliable climb limit.
-- Upper room: x −7..7, z −35..−19, floor 4.6, ceiling 8.2. Open on the central-deck face and the bow-deck face with waist-high railings, so it can fire out. Solid walls on the outboard sides. Doorway from the internal stair and a door to the external stair landing.
-- Upper cover: console at x 4, z −30; low cabinet at x −4, z −22.
+- Internal stair: x 4.6, rising from z −23.4 (y 0) to z −34.6 (y 4.6), 15 treads at 4.6/15 m rise and 0.8 m run. This fits inside the 18 m cabin and keeps every step inside the bots' reliable climb limit.
+- Upper room: x −7..7, z −35..−19, floor 4.6, ceiling 8.2. Open on the central-deck face and the bow-deck face with waist-high railings, so it can fire out. Solid walls on the outboard sides. Doorway from the internal stair and a door to the external stair landing. The internal-stair mouth in the firing face is closed with the same 1.0 m brass railing, so the face is continuously railed from x −7..7; the stair top exits sideways onto the landing.
+- Upper cover: console at x 4, z −22; low cabinet at x −4, z −22.
 
-**Stern cabin, z 18..36.** Mirror of the bow cabin across z = 0: internal stair at x −5.8 running z 23.4→34.6, external stair on the port walkway from (−10.2, 47.2) to the landing at z 36.
+**Stern cabin, z 18..36.** Mirror of the bow cabin across z = 0: internal stair at x −4.6 running z 23.4→34.6, external stair on the port walkway from (−10.2, 47.2) to the landing at z 36.
 
 **Central deck, z −18..18.** Open to the sky; the hotspot.
 
@@ -105,11 +105,11 @@ Top-down, bow at the top. Dimensions in metres. The hull rails stay at x ±12.2 
 - Two low benches/planters at (0, ±11) to stagger the centre lane.
 - Maintenance access: starboard at x 8.5..12.2, z 10..18, descending to y −3.4 at z 18 on 10 treads at 0.34 m rise and 0.8 m run; port at x −12.2..−8.5, z −18..−10, mirrored. Both are open stairwells with brass rails and an amber light.
 
-**Walkways, x ±8.5..±12.2, z −54..54.** Full length on both sides. Cover: one staggered crate cluster per side — port at z ≈ −10, starboard at z ≈ +14 — plus a life-ring station at z 0 and the two stairwells described above. Two clusters total, not two per side, so neither cluster lands in a stairwell.
+**Walkways, x ±8.5..±12.2, z −54..54.** Full length on both sides. Cover: one staggered crate cluster per side, both outboard against the rail — port at (−11.5, −5), starboard at (11.5, 23.5) — a 1.4 × 1.0 × 1.4 m box with a 0.8 × 0.6 × 0.8 m cap, 1.6 m tall, solid and bullet-blocking, plus a life-ring station (0.35 m torus, no collider) on each rail at x ±11.9, y 1.1, z 0. Both clusters clear the stairwell cuts (port z −18..−10, starboard z 10..18) and every waypoint lane. Each cut is bridged by a 1.0 m outboard service ledge at x ±11.7, y −0.4, z ∓14, keeping the flank lanes continuous across their stairwells.
 
 **Upper level.** Each upper room opens over the central deck and its end deck. Railings at 1.0 m, solid side walls, no glass on the firing faces. This fixes the current map's flaw where bridge glass blocked the defenders' own bullets.
 
-**Glass.** Exactly four teal panes: one on each outboard ground-cabin wall per cabin, set beside the walkway doorways (not on any main firing face). They stay walk-through and become bullet blockers, preserving the glass invariant with new positions.
+**Glass.** Exactly four teal panes: one on each outboard ground-cabin wall per cabin, filling the 4 m window at z ∓33..∓29 beside — never inside — the 2 m walkway doorway at z ∓27, and not on any main firing face. They stay walk-through and become bullet blockers, preserving the glass invariant with new positions.
 
 **Maintenance deck, y −3.4..−0.4.** Central tunnel x −2.6..2.6, z −36..36, with side branches at z 14 (starboard) and z −14 (port) connecting to the two stairwells. Dark metal walls, amber cage lights every 8 m, two crate clusters, and bulkhead frames at z ±12 and ±24. This is the safe rotation lane and a close-quarters flank route.
 
@@ -165,18 +165,18 @@ Eight spawn points, mirrored:
 
 1. Bow centre `(0, 0.1, −46)`
 2. Bow port `(−9.5, 0.1, −42)`
-3. Bow starboard `(9.5, 0.1, −42)`
+3. Bow starboard `(9.5, 0.1, −34.5)` — on the walkway just aft of the external stair, under its 4.2 m landing
 4. Stern centre `(0, 0.1, 46)`
-5. Stern port `(−9.5, 0.1, 42)`
+5. Stern port `(−9.5, 0.1, 34.5)` — mirrored, clear of the external stair treads
 6. Stern starboard `(9.5, 0.1, 42)`
 7. Upper bow `(0, 4.6, −28)`
 8. Upper stern `(0, 4.6, 28)`
 
-Every spawn must sit above solid deck and outside every collider footprint. `pickSafestSpawn` keeps working unchanged.
+Every spawn must sit above solid deck, outside every collider footprint, and with 1.9 m of clear headroom over its 0.45 m radius (spawns under the external-stair treads fail; the 4.2 m landing passes). `pickSafestSpawn` keeps working unchanged.
 
 ## Waypoints
 
-Approximately 38 nodes, all connected. Edges are short (≤ 12 m), straight, and clear of geometry: bots have no horizontal collision resolution, so an edge through a wall would make them grind against it. Required ids/prefixes:
+60 nodes as built, all connected. The ≤ 12 m edge rule forces the count: each ~100 m flank lane, the central deck, the below-deck tunnel, and both cabin stairs need a node every few metres, and each of the four stairwell cuts needs a north/south bridge pair rather than one long edge. Edges are short, straight, and clear of geometry: bots have no horizontal collision resolution, so an edge through a wall would make them grind against it. Required ids/prefixes:
 
 - `bow_heli` — kept because bot AI prefers it for sniper personalities.
 - `upper_bow`, `upper_stern` — `upper` prefix is used by the sniper preference.
@@ -200,7 +200,7 @@ Stairs get a bottom and top waypoint so bots walk the treads instead of pathing 
 ## Performance Budget
 
 - Build time ≤ 60 ms (today 24 ms).
-- ≤ 260 colliders, ≤ 300 bullet blockers (today 107 / 111).
+- ≤ 260 colliders, ≤ 300 bullet blockers. As-built after the redesign fix wave: **217 colliders / 221 bullet blockers**, 8 spawns, 60 waypoints, 7 point lights.
 - Static geometry still merged per material + render order; target ≤ 140 draw calls.
 - ≤ 8 real point lights total.
 - Texture budget: one 128×128 deck texture; no per-object textures.
@@ -214,7 +214,9 @@ Stairs get a bottom and top waypoint so bots walk the treads instead of pathing 
 - New/updated tests:
   - Waypoint graph is connected, every neighbour id exists, and every edge is clear of solid colliders at chest height.
   - Every spawn sits above a collider and outside all collider footprints.
-  - All four glass panes are bullet blockers, absent from movement colliders, and in their new outboard positions.
+  - All four glass panes are bullet blockers, absent from movement colliders, sit at |z| ≥ 30 beside the walkway doorways, and leave the z ∓27 openings clear at chest height.
+  - Both walkway stairwell cuts are bridged on solid floor, with the north/south pair on each side.
+  - Every spawn has 1.9 m of clear headroom over its footprint, and both upper firing faces are railed across the internal-stair mouth.
   - Map bounds and collider/blocker budgets stay inside the limits.
   - Jumping under a low ceiling clamps at the ceiling and does not eject the player horizontally.
   - Existing physics/combat/respawn tests still pass.
