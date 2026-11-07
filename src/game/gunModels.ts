@@ -26,13 +26,14 @@ export interface GunRig {
   adsEyeRelief: number;
 }
 
-type Role = 'body' | 'metal' | 'accent' | 'polymer';
+type Role = 'body' | 'metal' | 'accent' | 'polymer' | 'optic';
 
 interface Buckets {
   body: THREE.BufferGeometry[];
   metal: THREE.BufferGeometry[];
   accent: THREE.BufferGeometry[];
   polymer: THREE.BufferGeometry[];
+  optic: THREE.BufferGeometry[];
 }
 
 const matMuzzleFlashBase = new THREE.MeshBasicMaterial({
@@ -43,7 +44,7 @@ const matMuzzleFlashBase = new THREE.MeshBasicMaterial({
 
 const materialCache = new Map<string, THREE.MeshStandardMaterial>();
 
-/** Per-weapon material cache keyed by id+role; only four roles exist per gun. */
+/** Per-weapon material cache keyed by id+role; only the roles a gun uses are built. */
 function gunMaterial(weapon: WeaponDef, role: Role): THREE.MeshStandardMaterial {
   const key = `${weapon.id}:${role}`;
   const cached = materialCache.get(key);
@@ -59,6 +60,16 @@ function gunMaterial(weapon: WeaponDef, role: Role): THREE.MeshStandardMaterial 
       break;
     case 'accent':
       m = new THREE.MeshStandardMaterial({ color: weapon.colors.accent, roughness: 0.45, metalness: 0.6 });
+      break;
+    case 'optic':
+      // Tinted glass for the sniper scope lens discs.
+      m = new THREE.MeshStandardMaterial({
+        color: 0x223344,
+        roughness: 0.1,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.5,
+      });
       break;
     default:
       m = new THREE.MeshStandardMaterial({ color: weapon.colors.primary, roughness: 0.8, metalness: 0.05 });
@@ -190,15 +201,13 @@ interface WeaponGeometry {
   tipGlow: [number, number, number] | null;
 }
 
-const emptyBuckets = (): Buckets => ({ body: [], metal: [], accent: [], polymer: [] });
+const emptyBuckets = (): Buckets => ({ body: [], metal: [], accent: [], polymer: [], optic: [] });
 
 /** Geometry for the four live weapons. Dead branches were removed outright. */
 function buildWeaponGeometry(weapon: WeaponDef): WeaponGeometry {
   const b = emptyBuckets();
-  const body = gunMaterial(weapon, 'body');
   const metal = gunMaterial(weapon, 'metal');
   const accent = gunMaterial(weapon, 'accent');
-  const polymer = gunMaterial(weapon, 'polymer');
   const mag: THREE.BufferGeometry[] = [];
   const bolt: THREE.BufferGeometry[] = [];
   const pump: THREE.BufferGeometry[] = [];
@@ -214,12 +223,12 @@ function buildWeaponGeometry(weapon: WeaponDef): WeaponGeometry {
       addBox(b.metal, 0.028, 0.008, 0.06, 0, -0.052, 0.03);
       addCyl(b.metal, 0.014, 0.014, 0.3, 10, 0, 0.012, -0.45, 'z');
       addCyl(b.accent, 0.02, 0.02, 0.06, 10, 0, 0.012, -0.6, 'z');
-      // Rear aperture ring + protective ears.
-      addTorus(b.metal, 0.014, 0.004, 6, 12, 0, 0.098, -0.22);
+      // Rear aperture ring + protective ears, centred on the sightRear anchor.
+      addTorus(b.metal, 0.014, 0.004, 6, 12, 0, 0.09, -0.22);
       addBox(b.metal, 0.006, 0.03, 0.008, -0.02, 0.09, -0.22);
       addBox(b.metal, 0.006, 0.03, 0.008, 0.02, 0.09, -0.22);
-      // Front post inside a hood.
-      addTorus(b.metal, 0.016, 0.004, 6, 12, 0, 0.098, -0.62);
+      // Front post inside a hood, centred on the sightFront anchor.
+      addTorus(b.metal, 0.016, 0.004, 6, 12, 0, 0.09, -0.62);
       addBox(b.metal, 0.005, 0.022, 0.005, 0, 0.09, -0.62);
       addBox(mag, 0.04, 0.16, 0.06, 0, -0.11, -0.04, -0.2, 0, 0);
       addBox(bolt, 0.03, 0.012, 0.06, 0, 0.03, 0.16);
@@ -249,8 +258,8 @@ function buildWeaponGeometry(weapon: WeaponDef): WeaponGeometry {
       // Rear notch block.
       addBox(b.metal, 0.006, 0.014, 0.01, -0.012, 0.075, -0.18);
       addBox(b.metal, 0.006, 0.014, 0.01, 0.012, 0.075, -0.18);
-      // Hooded front post.
-      addTorus(b.metal, 0.014, 0.0035, 6, 12, 0, 0.083, -0.46);
+      // Hooded front post, centred on the sightFront anchor.
+      addTorus(b.metal, 0.014, 0.0035, 6, 12, 0, 0.075, -0.46);
       addBox(b.metal, 0.005, 0.018, 0.005, 0, 0.075, -0.46);
       addBox(mag, 0.036, 0.18, 0.05, 0, -0.1, -0.03, -0.12, 0, 0);
       addBox(bolt, 0.025, 0.012, 0.05, -0.03, 0.02, 0.06);
@@ -309,8 +318,8 @@ function buildWeaponGeometry(weapon: WeaponDef): WeaponGeometry {
       addCyl(b.metal, 0.032, 0.024, 0.08, 12, 0, 0.13, -0.73, 'z');
       addBox(b.metal, 0.03, 0.05, 0.02, 0, 0.09, -0.62);
       addBox(b.metal, 0.03, 0.05, 0.02, 0, 0.09, -0.38);
-      addCyl(b.metal, 0.02, 0.02, 0.004, 12, 0, 0.13, -0.75, 'z');
-      addCyl(b.metal, 0.02, 0.02, 0.004, 12, 0, 0.13, -0.25, 'z');
+      addCyl(b.optic, 0.02, 0.02, 0.004, 12, 0, 0.13, -0.75, 'z');
+      addCyl(b.optic, 0.02, 0.02, 0.004, 12, 0, 0.13, -0.25, 'z');
       addBox(b.accent, 0.05, 0.045, 0.1, 0, 0.02, -0.8);
       addBox(mag, 0.045, 0.13, 0.08, 0, -0.1, -0.02);
       addBox(bolt, 0.012, 0.03, 0.05, 0.045, 0.06, 0.02);
@@ -347,8 +356,9 @@ const RIG_CONFIG: Record<string, RigConfig> = {
 
 /**
  * Assembles one fully posed gun rig. Direct children of `group` top out at 16:
- * up to four merged static meshes, two sight anchors, four animated-part groups,
- * the muzzle flash, two hands, and two viewmodel lights (plus the AR/SMG glow tip).
+ * up to five merged static meshes (the sniper's tinted lens is its own material),
+ * two sight anchors, four animated-part groups, the muzzle flash, two hands, and
+ * two viewmodel lights (the AR/SMG rigs trade the fifth mesh for a glow tip).
  */
 export function buildGunModel(weapon: WeaponDef): GunRig {
   const geo = buildWeaponGeometry(weapon);
@@ -357,7 +367,7 @@ export function buildGunModel(weapon: WeaponDef): GunRig {
   const group = new THREE.Group();
 
   // Static geometry, merged per material to bound draw calls.
-  for (const role of ['body', 'metal', 'accent', 'polymer'] as Role[]) {
+  for (const role of ['body', 'metal', 'accent', 'polymer', 'optic'] as Role[]) {
     const bucket = geo.buckets[role];
     if (!bucket.length) continue;
     const merged = mergeGeometries(bucket, false);
