@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { pickSafestSpawn, PLAYER_RESPAWN_SECONDS, BOT_RESPAWN_SECONDS, respawnProgress } from './respawn';
+import { pickSafestSpawn, PLAYER_RESPAWN_SECONDS, BOT_RESPAWN_SECONDS, respawnProgress, respawnLoadout } from './respawn';
 
 test('player respawn takes three seconds', () => {
   assert.equal(PLAYER_RESPAWN_SECONDS, 3);
@@ -17,6 +17,11 @@ test('respawnProgress goes from full to empty over the player respawn window', (
   assert.equal(respawnProgress(0), 0);
   assert.equal(respawnProgress(-1), 0);
   assert.equal(respawnProgress(PLAYER_RESPAWN_SECONDS + 5), 1);
+});
+
+test('respawnLoadout refills the clip and clears reload state', () => {
+  assert.deepEqual(respawnLoadout(30), { ammo: 30, isReloading: false, reloadTimer: 0 });
+  assert.equal(respawnLoadout(0).ammo, 0);
 });
 
 test('pickSafestSpawn chooses the spawn farthest from the nearest threat', () => {

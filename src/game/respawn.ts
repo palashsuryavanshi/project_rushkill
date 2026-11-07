@@ -20,6 +20,21 @@ export function respawnProgress(remainingSec: number, totalSec = PLAYER_RESPAWN_
   return Math.min(1, Math.max(0, remainingSec / totalSec));
 }
 
+export interface RespawnLoadout {
+  ammo: number;
+  isReloading: boolean;
+  reloadTimer: number;
+}
+
+/** A fresh clip on respawn, with any in-progress reload cancelled. */
+export function respawnLoadout(magSize: number): RespawnLoadout {
+  return {
+    ammo: Math.max(0, magSize),
+    isReloading: false,
+    reloadTimer: 0,
+  };
+}
+
 export interface SpawnThreat {
   pos: THREE.Vector3;
 }

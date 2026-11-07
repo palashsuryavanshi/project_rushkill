@@ -10,7 +10,8 @@ import { PlayerPhysics } from './playerPhysics';
 import { PointerLockController } from './pointerLock';
 import { EffectsPool } from './effectsPool';
 import { MatchLoop } from './matchLoop';
-import { pickSafestSpawn, PLAYER_RESPAWN_SECONDS } from './respawn';
+import { pickSafestSpawn, PLAYER_RESPAWN_SECONDS, respawnLoadout } from './respawn';
+import { HealthRegen } from './healthRegen';
 import { evaluateKillScore, checkMatchEnd } from './rules';
 import { sound } from './audio';
 import { statsChanged, minimapChanged, LastMinimap } from './notifyGate';
@@ -98,6 +99,7 @@ export class GameEngine {
   // Player death / respawn
   private isPlayerDead = false;
   private playerRespawnTimer = 0;
+  private readonly healthRegen = new HealthRegen();
 
   // Tracers & Particles Pool
   private effects!: EffectsPool;
@@ -457,6 +459,7 @@ export class GameEngine {
     this.hp = 100;
     this.isPlayerDead = false;
     this.playerRespawnTimer = 0;
+    this.healthRegen.reset();
     this.score = 0;
     this.kills = 0;
     this.deaths = 0;
@@ -713,6 +716,7 @@ export class GameEngine {
         // Player takes realistic damage
         const damage = Math.round(bot.weapon.damage * (0.6 + Math.random() * 0.4));
         this.hp -= damage;
+        this.healthRegen.onDamage();
         sound.playHurt();
 
         if (this.hp <= 0) {
@@ -801,16 +805,25 @@ export class GameEngine {
     this.hp = this.maxHp;
     this.isPlayerDead = false;
     this.playerRespawnTimer = 0;
+    this.healthRegen.reset();
     this.isAds = false;
     this.adsWeight = 0;
-    this.isReloading = false;
-    this.reloadTimer = 0;
     this.fireTimer = 0;
+
+    const loadout = respawnLoadout(this.activeWeapon.magSize);
+    this.ammo = loadout.ammo;
+    this.isReloading = loadout.isReloading;
+    this.reloadTimer = loadout.reloadTimer;
+
     this.physics.isGrounded = true;
     this.physics.isSliding = false;
     this.keysHeld.clear();
     this.mouseButtonsHeld.clear();
     this.notifyStats(true);
+  }
+
+  private updateHealthRegen(dt: number) {
+    this.hp = this.healthRegen.tick(dt, this.hp, this.maxHp);
   }
 
   private updatePlayerPhysics(dt: number) {
@@ -848,6 +861,7 @@ export class GameEngine {
         onFootstep: () => sound.playFootstep(),
         onOceanFall: () => {
           this.hp -= 35;
+          this.healthRegen.onDamage();
           sound.playHurt();
           if (this.hp <= 0) this.killPlayer('The ocean', 'Fall', false);
         },
@@ -1010,6 +1024,7 @@ export class GameEngine {
             this.tickPlayerRespawn(dt);
           } else {
             this.updatePlayerPhysics(dt);
+            this.updateHealthRegen(dt);
           }
           this.updateCameraAndWeapon(dt);
           this.effects.update(dt);

@@ -146,6 +146,10 @@ _Avoid_: revive, rebirth
 The draining bar shown while the player is dead. It replaces a numeric countdown and empties exactly as the respawn timer reaches zero.
 _Avoid_: countdown, timer
 
+**Health regen**:
+Player-only healing that starts 4 seconds after the last damage and restores 20 HP per second up to the maximum. New damage restarts the delay; dead players never regenerate.
+_Avoid_: auto-heal, passive heal
+
 **Title screen**:
 The pre-match presentation with the orbit camera around the yacht.
 _Avoid_: main menu, lobby

@@ -27,12 +27,20 @@ Finish the gameplay design that was deferred while the engine was split. The goa
 
 **3A — Gravity and jump.** Gravity is `-9.81` for players and bots. The player jump is `5.42 m/s`, giving a ~1.5 m apex and ~1.1 s airtime. The bot jump is `4.9 m/s`, preserving its previous ~1.2 m apex. The 1.5 m apex clears 1 m ledges without the floaty 2.1 m arc that a pure height-preserving scale would produce.
 
+## Follow-up: health regen and respawn loadout
+
+**Health regen.** Player only. Damage starts a 4 second delay; after it, health returns at 20 HP/s up to max. Any new damage restarts the delay, and a dead player never regenerates — respawn is the only way back from 0 HP. Bots keep their fixed health.
+
+**Respawn loadout.** Respawning refills the clip to the active weapon's magazine size and cancels any in-progress reload. This is deliberate: dying is already the penalty, and returning with a partly empty clip punished the player twice. Reserve ammo is unaffected because it is already infinite.
+
+**Crosshair and ADS.** The hip-fire crosshair and the ADS dot are now yellow with a black outline and a soft yellow glow, so they stay legible against both the bright deck and the dark interior. The ADS dot grew to 5 px.
+
 ## Bug fixed in the same pass
 
 `GameEngine` defined `onBlur` and removed it during cleanup but never registered it, so held keys and ADS could stick after the window lost focus. The listener is now registered.
 
 ## Verification
 
-- Unit tests cover the shotgun cutoff (including the pellet-count edge case), full-damage long-range AR/SMG/sniper shots, the jump apex, safe-spawn selection, and the respawn progress curve.
+- Unit tests cover the shotgun cutoff (including the pellet-count edge case), full-damage long-range AR/SMG/sniper shots, the jump apex, safe-spawn selection, the respawn progress curve, health regen (delay, rate, cap, dead players), and the respawn loadout.
 - `tsc --noEmit`, the full node test suite, and the Vite production build all pass.
 - Browser smoke test: title screen and match start render with no console errors.

@@ -125,38 +125,38 @@ export const HUD: React.FC<HUDProps> = ({
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
           {/* ADS dot for non-sniper weapons (crosshair is otherwise empty when ADS) */}
           {stats.isAds && (
-            <div className="w-[3px] h-[3px] rounded-full bg-emerald-400 shadow-[0_0_3px_black]" />
+            <div className="w-[5px] h-[5px] rounded-full bg-yellow-300 shadow-[0_0_0_1.5px_rgba(0,0,0,0.95),0_0_7px_rgba(253,224,71,0.9)]" />
           )}
 
           {/* Dynamic Crosshair Spread based on speed and ADS */}
           {!stats.isAds && (
             <div className="relative w-8 h-8 flex items-center justify-center">
               <div
-                className="absolute w-[2px] h-[9px] bg-emerald-400 shadow-[0_0_2px_black]"
+                className="absolute w-[2px] h-[9px] bg-yellow-300 shadow-[0_0_0_1px_rgba(0,0,0,0.95),0_0_5px_rgba(253,224,71,0.55)]"
                 style={{
                   transform: `translateY(-${10 + stats.speed * 0.4}px)`,
                 }}
               />
               <div
-                className="absolute w-[2px] h-[9px] bg-emerald-400 shadow-[0_0_2px_black]"
+                className="absolute w-[2px] h-[9px] bg-yellow-300 shadow-[0_0_0_1px_rgba(0,0,0,0.95),0_0_5px_rgba(253,224,71,0.55)]"
                 style={{
                   transform: `translateY(${10 + stats.speed * 0.4}px)`,
                 }}
               />
               <div
-                className="absolute h-[2px] w-[9px] bg-emerald-400 shadow-[0_0_2px_black]"
+                className="absolute h-[2px] w-[9px] bg-yellow-300 shadow-[0_0_0_1px_rgba(0,0,0,0.95),0_0_5px_rgba(253,224,71,0.55)]"
                 style={{
                   transform: `translateX(-${10 + stats.speed * 0.4}px)`,
                 }}
               />
               <div
-                className="absolute h-[2px] w-[9px] bg-emerald-400 shadow-[0_0_2px_black]"
+                className="absolute h-[2px] w-[9px] bg-yellow-300 shadow-[0_0_0_1px_rgba(0,0,0,0.95),0_0_5px_rgba(253,224,71,0.55)]"
                 style={{
                   transform: `translateX(${10 + stats.speed * 0.4}px)`,
                 }}
               />
               {/* Center Dot */}
-              <div className="w-[3px] h-[3px] rounded-full bg-amber-400 shadow-[0_0_3px_black]" />
+              <div className="w-[4px] h-[4px] rounded-full bg-yellow-300 shadow-[0_0_0_1px_rgba(0,0,0,0.95),0_0_7px_rgba(253,224,71,0.9)]" />
             </div>
           )}
 
