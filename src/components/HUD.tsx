@@ -128,11 +128,6 @@ export const HUD: React.FC<HUDProps> = ({
       {/* 2. DYNAMIC CROSSHAIR & HITMARKER (Non-scoped) */}
       {!isSniperScoped && (
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-          {/* ADS dot for non-sniper weapons (crosshair is otherwise empty when ADS) */}
-          {stats.isAds && (
-            <div className="w-[5px] h-[5px] rounded-full bg-yellow-300 shadow-[0_0_0_1.5px_rgba(0,0,0,0.95),0_0_7px_rgba(253,224,71,0.9)]" />
-          )}
-
           {/* Dynamic Crosshair Spread based on speed and ADS */}
           {!stats.isAds && (
             <div className="relative w-8 h-8 flex items-center justify-center">
@@ -405,7 +400,7 @@ export const HUD: React.FC<HUDProps> = ({
         ))}
       </div>
 
-      {/* 8. BOTTOM-LEFT CLUSTER: HEALTH & SPEEDOMETER */}
+      {/* 8. BOTTOM-LEFT CLUSTER: HEALTH */}
       <div className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-[max(1.5rem,env(safe-area-inset-left))] flex flex-col gap-2 max-w-sm max-sm:max-w-[60vw]">
         {/* Slide / Bhop Indicator */}
         {stats.isSliding && (
@@ -416,19 +411,12 @@ export const HUD: React.FC<HUDProps> = ({
         )}
 
         <div className="bg-slate-950/85 border border-slate-800 p-4 rounded-2xl shadow-2xl flex flex-col gap-2.5">
-          <div className="flex items-baseline justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-emerald-400 tracking-wider">HP</span>
-              <span className="font-mono text-2xl font-black text-white tabular-nums">{stats.hp}</span>
-              <span className="text-xs text-slate-500 font-mono">/ {stats.maxHp}</span>
-            </div>
-            <div className="text-[11px] font-mono text-slate-400 font-bold">
-              SPEED: <span className="text-amber-400">{stats.speed} m/s</span>
-            </div>
-          </div>
-
-          {/* Health Bar with delayed Ghost Bar */}
-          <div className="relative w-56 h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-700/80">
+          {/* Health Bar with delayed Ghost Bar (pulses below 30%) */}
+          <div
+            className={`relative w-full h-3.5 bg-slate-900 rounded-full overflow-hidden border border-slate-700/80 ${
+              stats.hp / stats.maxHp < 0.3 ? 'animate-pulse border-red-500/70' : ''
+            }`}
+          >
             {/* Trailing Ghost Bar */}
             <div
               className="absolute left-0 top-0 bottom-0 bg-red-400/80 transition-all duration-300"
