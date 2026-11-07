@@ -356,6 +356,7 @@ export class GameEngine {
     this.reloadTimer = 0;
     this.reloadDuration = 0;
     
+    this.applyViewmodelPose(ZERO_POSE, 0, 0);
 
     this.notifyStats(true);
   }
@@ -568,7 +569,10 @@ export class GameEngine {
   private startReload() {
     if (this.isPlayerDead) return;
     this.isReloading = true;
+    this.reloadDuration = this.activeWeapon.reloadTimeSec;
     this.reloadTimer = this.activeWeapon.reloadTimeSec;
+    this.cycleTimer = 0;
+    this.cycleKind = 'none';
     sound.playReload(this.activeWeapon.reloadTimeSec);
   }
 
@@ -587,6 +591,7 @@ export class GameEngine {
     this.shotsFired++;
     const fireInterval = 60 / this.activeWeapon.fireRateRpm;
     this.fireTimer = fireInterval;
+    this.shotKick = true;
 
     // Recoil kick (realistic recoil based on movement and stance)
     const recoilMultiplier = this.physics.isSliding ? 1.3 : 1.0;
@@ -607,6 +612,14 @@ export class GameEngine {
 
     // Audio
     sound.playGunshot(this.activeWeapon.soundType);
+
+    // Arm pump/lever cycle for weapons that use them
+    const cycle = this.gunRig?.cycle;
+    if (cycle && cycle.kind !== 'none' && !this.isReloading) {
+      this.cycleKind = cycle.kind;
+      this.cycleDuration = cycle.duration;
+      this.cycleTimer = cycle.duration;
+    }
 
     // Muzzle Flash
     this.flashTimer = 0.05;
@@ -862,6 +875,13 @@ export class GameEngine {
     this.physics.vel.set(0, 0, 0);
     this.physics.isSliding = false;
 
+    // Reset viewmodel animation state
+    this.cycleTimer = 0;
+    this.cycleKind = 'none';
+    this.recoilState = { offset: 0, velocity: 0 };
+    this.shotKick = false;
+    this.applyViewmodelPose(ZERO_POSE, 0, 0);
+
     this.callbacks.onKillfeed({
       id: `kf_${Date.now()}_${Math.random()}`,
       killer,
@@ -896,6 +916,13 @@ export class GameEngine {
     this.isAds = false;
     this.adsWeight = 0;
     this.fireTimer = 0;
+
+    // Reset viewmodel animation state
+    this.cycleTimer = 0;
+    this.cycleKind = 'none';
+    this.recoilState = { offset: 0, velocity: 0 };
+    this.shotKick = false;
+    this.applyViewmodelPose(ZERO_POSE, 0, 0);
 
     const loadout = respawnLoadout(this.activeWeapon.magSize);
     this.ammo = loadout.ammo;
@@ -958,6 +985,107 @@ export class GameEngine {
     );
   }
 
+  private updateViewmodel(dt: number) {
+    // Smooth ADS weight transition
+    this.adsWeight = THREE.MathUtils.damp(this.adsWeight, this.isAds ? 1 : 0, 16, dt);
+    
+    // Compute ADS position
+    const ads = this.gunRig ? computeAdsPosition(this.gunRig.sightRear.position, this.gunRig.adsEyeRelief) : { x: 0, y: 0, z: 0 };
+    
+    // Base position: lerp between hip and ADS with bob and breathing
+    const hSpeed = Math.sqrt(this.physics.vel.x * this.physics.vel.x + this.physics.vel.z * this.physics.vel.z);
+    const bobX = Math.cos(this.physics.gunBobTime) * 0.015 * (1 - this.adsWeight);
+    const bobY = Math.sin(this.physics.gunBobTime * 2) * 0.012 * (1 - this.adsWeight);
+    const breathOffset = Math.sin(Date.now() * 0.002) * 0.01 * this.adsWeight;
+    
+    const hipPos = new THREE.Vector3(0.22 + bobX, -0.22 + bobY + breathOffset, -0.42);
+    const targetPos = hipPos.clone().lerp(new THREE.Vector3(0.0, -0.15 + breathOffset, -0.32), this.adsWeight);
+    
+    // Update recoil state
+    const profile = RECOIL_PROFILES[this.activeWeapon.category];
+    this.recoilState = stepRecoil(this.recoilState, profile, this.shotKick, dt);
+    this.shotKick = false;
+    
+    // Sample reload pose if reloading
+    const reload = this.isReloading ? sampleReloadPose(1 - this.reloadTimer / this.reloadDuration, this.activeWeapon.category) : ZERO_POSE;
+    
+    // Update cycle timer and sample cycle pose
+    let cycleProgress = 0;
+    if (this.cycleTimer > 0 && this.gunRig?.cycle?.kind !== 'none') {
+      this.cycleTimer = Math.max(0, this.cycleTimer - dt);
+      const elapsed = this.cycleDuration - this.cycleTimer;
+      const cycle = this.gunRig!.cycle || { startDelay: 0 };
+      const startDelay = cycle.startDelay || 0;
+      const span = Math.max(1e-4, this.cycleDuration - startDelay);
+      cycleProgress = THREE.MathUtils.clamp((elapsed - startDelay) / span, 0, 1);
+    } else {
+      this.cycleKind = 'none';
+    }
+    const cycle = this.cycleKind === 'none' ? ZERO_POSE : sampleCyclePose(cycleProgress, this.cycleKind);
+    
+    // Compose the final pose by adding offsets
+    const pose = {
+      weaponPos: {
+        x: targetPos.x,
+        y: targetPos.y,
+        z: targetPos.z + reload.weaponPos.z + cycle.weaponPos.z + this.recoilState.offset
+      },
+      weaponRot: {
+        x: reload.weaponRot.x + cycle.weaponRot.x + this.recoilState.offset,
+        y: 0,
+        z: 0
+      },
+      leftHandPos: {
+        x: this.leftHandRest.x + reload.leftHandPos.x + cycle.leftHandPos.x,
+        y: this.leftHandRest.y + reload.leftHandPos.y + cycle.leftHandPos.y,
+        z: this.leftHandRest.z + reload.leftHandPos.z + cycle.leftHandPos.z
+      },
+      leftHandRot: {
+        x: this.leftHandRestRot.x + reload.leftHandRot.x + cycle.leftHandRot.x,
+        y: this.leftHandRestRot.y + reload.leftHandRot.y + cycle.leftHandRot.y,
+        z: this.leftHandRestRot.z + reload.leftHandRot.z + cycle.leftHandRot.z
+      },
+      magazineDrop: reload.magazineDrop,
+      boltBack: reload.boltBack + cycle.boltBack,
+      pumpBack: reload.pumpBack + cycle.pumpBack,
+      leverAngle: reload.leverAngle + cycle.leverAngle
+    };
+    
+    this.applyViewmodelPose(pose, this.adsWeight, this.recoilState.offset);
+  }
+
+  private applyViewmodelPose(pose: PoseOffsets, adsWeight: number, recoilOffset: number) {
+    if (!this.gunRig) return;
+    
+    // Apply weapon position and rotation
+    this.gunRig.group.position.set(pose.weaponPos.x, pose.weaponPos.y, pose.weaponPos.z);
+    this.gunRig.group.rotation.set(pose.weaponRot.x, pose.weaponRot.y, pose.weaponRot.z);
+    
+    // Apply left hand transform
+    this.gunRig.leftHand.position.set(pose.leftHandPos.x, pose.leftHandPos.y, pose.leftHandPos.z);
+    this.gunRig.leftHand.rotation.set(pose.leftHandRot.x, pose.leftHandRot.y, pose.leftHandRot.z);
+    
+    // Apply magazine transform if exists
+    if (this.gunRig.magazine) {
+      this.gunRig.magazine.position.y = this.magazineRestY - pose.magazineDrop;
+    }
+    
+    // Apply bolt transform if exists
+    if (this.gunRig.bolt) {
+      this.gunRig.bolt.position.z = this.boltRestZ + pose.boltBack;
+    }
+    
+    // Apply pump transform if exists
+    if (this.gunRig.pump) {
+      this.gunRig.pump.position.z = this.pumpRestZ + pose.pumpBack;
+    }
+    
+    // Apply lever transform if exists
+    if (this.gunRig.lever) {
+      this.gunRig.lever.rotation.x = this.leverRestX + pose.leverAngle;
+    }
+  }
+
   private updateCameraAndWeapon(dt: number) {
     // Recoil recovery
     this.recoilPitch = THREE.MathUtils.damp(this.recoilPitch, 0, this.activeWeapon.recoilRecoverySpeed, dt);
@@ -976,32 +1104,14 @@ export class GameEngine {
     this.camera.fov = THREE.MathUtils.damp(this.camera.fov, targetFov, 14.0, dt);
     this.camera.updateProjectionMatrix();
 
-    // Gun Model Position (Hip vs ADS alignment)
-    this.adsWeight = THREE.MathUtils.damp(this.adsWeight, this.isAds ? 1.0 : 0.0, 16.0, dt);
+    // Update viewmodel pose and animation
+    this.updateViewmodel(dt);
 
-    if (this.gunRig) {
-      // Weapon Bobbing
-      const hSpeed = Math.sqrt(this.physics.vel.x * this.physics.vel.x + this.physics.vel.z * this.physics.vel.z);
-      const bobX = Math.cos(this.physics.gunBobTime) * 0.015 * (1 - this.adsWeight);
-      const bobY = Math.sin(this.physics.gunBobTime * 2) * 0.012 * (1 - this.adsWeight);
-
-      // Hip position: slightly to right & lower
-      const hipPos = new THREE.Vector3(0.22 + bobX, -0.22 + bobY, -0.42);
-      // ADS position: straight center
-      const adsPos = new THREE.Vector3(0.0, -0.15, -0.32);
-
-      this.gunRig.group.position.lerpVectors(hipPos, adsPos, this.adsWeight);
-
-      // Recoil kick on model
-      this.gunRig.group.position.z += this.recoilPitch * 0.4;
-      this.gunRig.group.rotation.x = this.recoilPitch * 0.7;
-
-      // Muzzle flash decay
-      if (this.flashTimer > 0) {
-        this.flashTimer -= dt;
-        if (this.flashTimer <= 0) {
-          (this.gunRig.muzzleFlash.material as THREE.MeshBasicMaterial).opacity = 0;
-        }
+    // Muzzle flash decay
+    if (this.flashTimer > 0) {
+      this.flashTimer -= dt;
+      if (this.flashTimer <= 0 && this.gunRig?.muzzleFlash) {
+        (this.gunRig.muzzleFlash.material as THREE.MeshBasicMaterial).opacity = 0;
       }
     }
   }
