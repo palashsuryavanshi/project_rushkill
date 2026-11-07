@@ -1,0 +1,17 @@
+{
+  "name": "rushkill-relay",
+  "version": "1.0.0",
+  "description": "WebSocket relay server for Project Rushkill multiplayer",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testTimeout=10000"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
