@@ -410,7 +410,8 @@ export class GameEngine {
 
       this.mouseButtonsHeld.add(e.button);
       if (e.button === 2) {
-        this.isAds = true;
+        // Only allow ADS for Sniper weapons
+        this.isAds = this.activeWeapon.category === 'Sniper';
       }
       if (e.button === 0) {
         this.tryFireWeapon();
