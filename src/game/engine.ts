@@ -9,6 +9,7 @@ import { findClosestBotHit, applySpread, drainPendingHits, type PendingHit } fro
 import { PlayerPhysics } from './playerPhysics';
 import { PointerLockController } from './pointerLock';
 import { EffectsPool } from './effectsPool';
+import { MatchLoop } from './matchLoop';
 import { evaluateKillScore, checkMatchEnd } from './rules';
 import { sound } from './audio';
 import { statsChanged, minimapChanged, LastMinimap } from './notifyGate';
@@ -79,8 +80,16 @@ export class GameEngine {
   public headshots: number = 0;
   public shotsFired: number = 0;
   public shotsHit: number = 0;
-  public matchTimeRemaining: number = 300; // 5 min match
+  private readonly matchLoop = new MatchLoop();
   public scoreLimit: number = 25; // 25 kills to win
+
+  /** Match clock, kept public for App.tsx (delegates to MatchLoop). */
+  public get matchTimeRemaining(): number {
+    return this.matchLoop.timeRemaining;
+  }
+  public set matchTimeRemaining(seconds: number) {
+    this.matchLoop.timeRemaining = seconds;
+  }
 
   // Bots
   private bots: BotState[] = [];
@@ -105,10 +114,6 @@ export class GameEngine {
   public settings: GameSettings;
   private lastStatsPayload: PlayerStats | null = null;
   private lastMinimapSample: LastMinimap | null = null;
-  private statsAccum = 0;
-  private minimapAccum = 0;
-  private fpsFrames = 0;
-  private fpsElapsed = 0;
 
   constructor(container: HTMLDivElement, settings: GameSettings, callbacks: EngineCallbacks) {
     this.container = container;
@@ -872,14 +877,14 @@ export class GameEngine {
     this.callbacks.onStatsUpdate(payload);
   }
 
-  private notifyMinimap() {
+  private notifyMinimap(due: boolean) {
     // throttle: at most one emission every >= 0.1s
-    if (this.minimapAccum < 0.1) return;
+    if (!due) return;
     const x = this.physics.pos.x, z = this.physics.pos.z, angle = this.yaw;
     if (!minimapChanged(this.lastMinimapSample, x, z, angle)) return;
     const bots = this.bots.map((b) => ({ id: b.id, x: b.pos.x, z: b.pos.z, isDead: b.isDead }));
     this.lastMinimapSample = { x, z, angle };
-    this.minimapAccum = 0;
+    this.matchLoop.markMinimapSent();
     this.callbacks.onMinimapUpdate(
       { x, z, angle },
       bots
@@ -968,28 +973,18 @@ export class GameEngine {
           }
 
           // Match Timer countdown
-          if (this.matchTimeRemaining > 0) {
-            this.matchTimeRemaining -= dt;
-            if (this.matchTimeRemaining <= 0) {
-              const res = checkMatchEnd({
-                playerScore: this.kills,
-                scoreLimit: this.scoreLimit,
-                timeRemainingSec: 0,
-              });
-              if (res.isOver && res.winner) {
-                this.callbacks.onMatchEnd(res.winner);
-              }
-            }
+          const winner = this.matchLoop.advance(dt, this.kills, this.scoreLimit);
+          if (winner) {
+            this.callbacks.onMatchEnd(winner);
           }
 
           // Throttled HUD update
-          this.minimapAccum += dt;
-          this.statsAccum += dt;
-          if (this.statsAccum >= 0.1) {
+          const hud = this.matchLoop.hudDue(dt);
+          if (hud.statsDue) {
             this.notifyStats(true);
-            this.statsAccum = 0;
+            this.matchLoop.markStatsSent();
           }
-          this.notifyMinimap();
+          this.notifyMinimap(hud.minimapDue);
         }
       }
 
@@ -999,16 +994,13 @@ export class GameEngine {
         console.warn('Render exception caught:', renderErr);
       }
 
-      this.fpsFrames++;
-      this.fpsElapsed += dt;
-      if (this.fpsElapsed >= 1.0 && this.settings.showFps) {
-        this.callbacks.onFpsSample?.({
-          fps: this.fpsFrames / this.fpsElapsed,
-          frameMs: (this.fpsElapsed / this.fpsFrames) * 1000,
-          calls: (this.renderer as any)?.info?.render?.calls ?? 0,
-        });
-        this.fpsFrames = 0;
-        this.fpsElapsed = 0;
+      const fpsSample = this.matchLoop.sampleFps(
+        dt,
+        this.settings.showFps,
+        (this.renderer as any)?.info?.render?.calls ?? 0
+      );
+      if (fpsSample) {
+        this.callbacks.onFpsSample?.(fpsSample);
       }
 
       if (this.isSoftwareGl) {
