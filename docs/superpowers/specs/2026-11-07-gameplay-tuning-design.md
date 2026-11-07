@@ -8,8 +8,9 @@ Finish the gameplay design that was deferred while the engine was split. The goa
 
 ## Goals
 
-- Remove range falloff from AR, SMG, and sniper damage.
+- Remove range falloff from AR and SMG damage.
 - Give shotguns a hard 20 m range instead of gradual falloff.
+- Give the sniper unlimited range with 20% damage falloff per 30 m.
 - Make the player wait 3 seconds to respawn; bots keep their 10 second respawn.
 - Use 1:1 Earth gravity for players and bots, with jump velocities scaled to preserve a good arc.
 
@@ -35,12 +36,20 @@ Finish the gameplay design that was deferred while the engine was split. The goa
 
 **Crosshair and ADS.** The hip-fire crosshair and the ADS dot are now yellow with a black outline and a soft yellow glow, so they stay legible against both the bright deck and the dark interior. The ADS dot grew to 5 px.
 
+## Follow-up: sniper precision, range, and jump repeat
+
+**Sniper falloff.** The sniper keeps full damage inside 30 m, then loses 20% of its base damage for each additional full 30 m. A headshot multiplier applies after the falloff. There is no range ceiling: the ray reaches any distance, and damage floors at 1.
+
+**Sniper hitbox.** The body AABB now starts at the bot's feet instead of 0.4 m up, so shots on the visible legs register. Scoped sniper shots no longer inherit the generic 0.02 rad stance penalty, which was roughly 2 m of error at 100 m and made visually centred long shots miss. Hip-fired sniper shots keep the normal movement and stance spread.
+
+**Jump repeat.** Browsers repeat `keydown` while Space is held. Those repeats were re-buffering a jump on every frame, so holding Space chained jumps and carried far more distance than a single jump. Only a non-repeat Space press now queues a jump.
+
 ## Bug fixed in the same pass
 
 `GameEngine` defined `onBlur` and removed it during cleanup but never registered it, so held keys and ADS could stick after the window lost focus. The listener is now registered.
 
 ## Verification
 
-- Unit tests cover the shotgun cutoff (including the pellet-count edge case), full-damage long-range AR/SMG/sniper shots, the jump apex, safe-spawn selection, the respawn progress curve, health regen (delay, rate, cap, dead players), and the respawn loadout.
+- Unit tests cover the shotgun cutoff (including the pellet-count edge case), full-damage long-range AR/SMG shots, sniper falloff per 30 m step, the leg hitbox, unlimited sniper range, scoped sniper spread, the jump apex, single-launch jump repeat, safe-spawn selection, the respawn progress curve, health regen (delay, rate, cap, dead players), and the respawn loadout.
 - `tsc --noEmit`, the full node test suite, and the Vite production build all pass.
 - Browser smoke test: title screen and match start render with no console errors.

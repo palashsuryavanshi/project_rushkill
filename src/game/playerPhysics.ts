@@ -28,6 +28,14 @@ const JUMP_VELOCITY = 5.42; // tuned for a ~1.5 m apex at Earth gravity
 const PLAYER_RADIUS = 0.45;
 const STEP_HEIGHT = 0.55;
 
+/**
+ * Browsers repeat `keydown` while a key is held. Only the first Space press is
+ * a jump intent; buffering the repeats re-launches the player on every landing.
+ */
+export function shouldQueueJump(event: { code: string; repeat: boolean }): boolean {
+  return event.code === 'Space' && !event.repeat;
+}
+
 export class PlayerPhysics {
   readonly pos = new THREE.Vector3(0, 0.1, -45);
   readonly vel = new THREE.Vector3();

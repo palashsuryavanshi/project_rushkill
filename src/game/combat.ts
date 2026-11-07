@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { BotState } from './botAI';
+import type { WeaponDef } from './types';
 
 /**
  * Combat geometry + the single-registration projectile queue.
@@ -67,7 +68,8 @@ export interface BotHit {
 export function findClosestBotHit(
   origin: THREE.Vector3,
   dir: THREE.Vector3,
-  bots: readonly BotState[]
+  bots: readonly BotState[],
+  maxRange: number = RAY_FAR
 ): BotHit | null {
   let closest: BotHit | null = null;
   let closestDist = Infinity;
@@ -81,14 +83,18 @@ export function findClosestBotHit(
     const bodyHit = rayBox(
       origin,
       dir,
-      new THREE.Vector3(px - 0.6, py + 0.4, pz - 0.5),
-      new THREE.Vector3(px + 0.6, py + 1.65, pz + 0.5)
+      new THREE.Vector3(px - 0.6, py + 0.05, pz - 0.5),
+      new THREE.Vector3(px + 0.6, py + 1.65, pz + 0.5),
+      RAY_NEAR,
+      maxRange
     );
     const headHit = rayBox(
       origin,
       dir,
       new THREE.Vector3(px - 0.45, py + 1.5, pz - 0.45),
-      new THREE.Vector3(px + 0.45, py + 2.3, pz + 0.45)
+      new THREE.Vector3(px + 0.45, py + 2.3, pz + 0.45),
+      RAY_NEAR,
+      maxRange
     );
 
     if (headHit !== null && (bodyHit === null || headHit <= bodyHit + 0.15)) {
@@ -115,6 +121,25 @@ export function findClosestBotHit(
   }
 
   return closest;
+}
+
+/**
+ * Spread cone for one shot. Scoped sniper shots get only the optic's own
+ * cone: the generic stance penalty is ~2 m of error at 100 m, which made
+ * visually centred long shots miss.
+ */
+export function computeShotSpread(
+  weapon: WeaponDef,
+  isAds: boolean,
+  speed: number,
+  isSliding: boolean
+): number {
+  const base = isAds ? weapon.adsSpread : weapon.hipSpread;
+  if (weapon.category === 'Sniper' && isAds) return base;
+
+  const movementSpread = speed * 0.002;
+  const stanceSpread = isSliding ? 0.08 : 0.02;
+  return base + movementSpread + stanceSpread;
 }
 
 /**

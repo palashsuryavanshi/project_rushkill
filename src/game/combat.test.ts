@@ -5,9 +5,11 @@ import {
   rayBox,
   findClosestBotHit,
   applySpread,
+  computeShotSpread,
   drainPendingHits,
   type PendingHit,
 } from './combat';
+import { getWeaponById } from './weapons';
 import type { BotState } from './botAI';
 
 function fakeBot(pos: THREE.Vector3, isDead = false): BotState {
@@ -68,6 +70,34 @@ test('findClosestBotHit skips dead bots', () => {
     [dead]
   );
   assert.equal(hit, null);
+});
+
+test('findClosestBotHit registers a hit on the legs', () => {
+  const bot = fakeBot(new THREE.Vector3(0, 0, 0));
+  const hit = findClosestBotHit(
+    new THREE.Vector3(0, 0.2, -10),
+    new THREE.Vector3(0, 0, 1),
+    [bot]
+  );
+  assert.ok(hit !== null, 'a shot at the visible legs must register');
+  assert.equal(hit!.isHead, false);
+});
+
+test('findClosestBotHit reaches past the default clip when given a range', () => {
+  const bot = fakeBot(new THREE.Vector3(0, 0, -400));
+  const hit = findClosestBotHit(
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(0, 0, -1),
+    [bot],
+    Infinity
+  );
+  assert.ok(hit !== null, 'an unlimited-range sniper shot must reach 400 m');
+});
+
+test('scoped sniper spread ignores the generic stance penalty', () => {
+  const sniper = getWeaponById('longbow');
+  assert.equal(computeShotSpread(sniper, true, 0, false), sniper.adsSpread);
+  assert.equal(computeShotSpread(sniper, true, 12, true), sniper.adsSpread);
 });
 
 test('applySpread keeps a unit direction and is deterministic with an injected rng', () => {

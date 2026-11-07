@@ -56,6 +56,14 @@ _Avoid_: elimination, frag, takedown
 The 20 m hard range of shotgun pellets. Inside it they deal full damage; beyond it they deal none.
 _Avoid_: falloff, damage drop-off
 
+**Sniper falloff**:
+The sniper's 20% base-damage loss for every full 30 m beyond the first. Range itself is unlimited.
+_Avoid_: damage drop-off, range limit
+
+**Jump repeat**:
+A browser `keydown` repetition while a key is held. Jump intent ignores repeats so one press is one jump.
+_Avoid_: auto-bhop, key spam
+
 **Streak**:
 Consecutive kills without dying. Drives score bonuses and streak banners.
 _Avoid_: combo

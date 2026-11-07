@@ -5,8 +5,8 @@ import { RUSH_WEAPONS, getWeaponById, calculateShotTotalDamage } from './weapons
 import { buildHijackedMap, MapData, BoxCollider } from './mapHijacked';
 import { buildGunModel, GunRig } from './gunModels';
 import { BotState, BotPersonality, createBot, updateBotAI, triggerBotHit } from './botAI';
-import { findClosestBotHit, applySpread, drainPendingHits, type PendingHit } from './combat';
-import { PlayerPhysics } from './playerPhysics';
+import { findClosestBotHit, applySpread, computeShotSpread, drainPendingHits, type PendingHit } from './combat';
+import { PlayerPhysics, shouldQueueJump } from './playerPhysics';
 import { PointerLockController } from './pointerLock';
 import { EffectsPool } from './effectsPool';
 import { MatchLoop } from './matchLoop';
@@ -338,7 +338,7 @@ export class GameEngine {
       this.keysHeld.add(e.code);
 
       // Edge triggers
-      if (e.code === 'Space' && !this.isPlayerDead) {
+      if (shouldQueueJump(e) && !this.isPlayerDead) {
         this.physics.queueJump(0.14); // coyote/jump buffering
       }
       if (e.code === 'KeyR' && !this.isPlayerDead && !this.isReloading && this.ammo < this.activeWeapon.magSize && this.reserveAmmo > 0) {
@@ -559,7 +559,12 @@ export class GameEngine {
     }
 
     // Bullet Spreads & Raycasting — each trigger pull registers at most ONCE per spray; pellet count applied once.
-    const spread = this.isAds ? this.activeWeapon.adsSpread : this.activeWeapon.hipSpread;
+    const spread = computeShotSpread(
+      this.activeWeapon,
+      this.isAds,
+      this.physics.vel.length(),
+      this.physics.isSliding
+    );
     const shotContext = { registered: false, tracerSpawned: false };
     this.shootPellet(spread, shotContext);
 
@@ -571,15 +576,16 @@ export class GameEngine {
     const aimDir = new THREE.Vector3(0, 0, -1);
     aimDir.applyEuler(new THREE.Euler(this.pitch + this.recoilPitch, this.yaw + this.recoilYaw, 0, 'YXZ'));
 
-    // Movement / stance spread
-    const movementSpread = this.physics.vel.length() * 0.002;
-    const stanceSpread = this.physics.isSliding ? 0.08 : 0.02;
-    applySpread(aimDir, spreadRad + movementSpread + stanceSpread);
+    // Movement / stance spread is already folded into `spreadRad` by computeShotSpread.
+    applySpread(aimDir, spreadRad);
 
     const rayOrigin = this.camera.position.clone();
 
-    // Padded, rotation-agnostic AABB hit test (unlimited range ceiling via far clip 300m)
-    const closestHitBot = findClosestBotHit(rayOrigin, aimDir, this.bots);
+    // Sniper rounds have no range ceiling; other guns stop at the map clip.
+    const maxRange = this.activeWeapon.category === 'Sniper' ? Infinity : undefined;
+
+    // Padded, rotation-agnostic AABB hit test.
+    const closestHitBot = findClosestBotHit(rayOrigin, aimDir, this.bots, maxRange);
 
     // One tracer per trigger pull — never spawn parallel pellets visually
     const muzzleWorld = new THREE.Vector3();

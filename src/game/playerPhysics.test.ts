@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { PlayerPhysics } from './playerPhysics';
+import { PlayerPhysics, shouldQueueJump } from './playerPhysics';
 import type { BoxCollider } from './mapHijacked';
 
 const NO_KEYS: ReadonlySet<string> = new Set<string>();
@@ -59,6 +59,25 @@ test('a jump reaches roughly a 1.5 m apex under Earth gravity', () => {
   }
 
   assert.ok(maxY > 1.4 && maxY < 1.6, `expected ~1.5 m apex, got ${maxY.toFixed(3)} m`);
+});
+
+test('holding jump with key repeat launches only once', () => {
+  const body = new PlayerPhysics();
+  body.reset(new THREE.Vector3(0, 0, 0));
+  body.isGrounded = true;
+
+  const keys = new Set(['Space']);
+  let jumps = 0;
+  for (let i = 0; i < 360; i++) {
+    if (shouldQueueJump({ code: 'Space', repeat: i > 0 })) body.queueJump(0.14);
+    body.update(
+      1 / 120,
+      { keys, yaw: 0, isAds: false, colliders: [floor(0)] },
+      { onJump: () => jumps++ }
+    );
+  }
+
+  assert.equal(jumps, 1, 'a held jump key must not chain bunny hops');
 });
 
 test('sliding starts when shift is held above the speed threshold', () => {

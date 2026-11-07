@@ -124,6 +124,10 @@ export function getWeaponsByCategory(category: WeaponCategory): WeaponDef[] {
 /** Shotgun pellets do nothing beyond this range. */
 export const SHOTGUN_CUTOFF_METERS = 20;
 
+/** Sniper damage drops 20% of its base for every full 30 m beyond the first. */
+export const SNIPER_FALLOFF_STEP_METERS = 30;
+export const SNIPER_FALLOFF_PER_STEP = 0.8;
+
 export function calculateShotDamage(
   weapon: WeaponDef,
   isHeadshot: boolean,
@@ -136,6 +140,12 @@ export function calculateShotDamage(
   }
 
   let baseDamage = weapon.damage;
+
+  if (weapon.category === 'Sniper') {
+    const steps = Math.floor(distanceUnits / SNIPER_FALLOFF_STEP_METERS);
+    baseDamage *= Math.pow(SNIPER_FALLOFF_PER_STEP, steps);
+  }
+
   if (isHeadshot) {
     baseDamage *= weapon.headshotMultiplier;
   }

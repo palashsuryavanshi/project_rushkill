@@ -33,9 +33,18 @@ test('AR and SMG keep full damage at long range (no falloff)', () => {
   assert.equal(calculateShotDamage(smg, false, 120), smg.damage);
 });
 
-test('sniper keeps full damage across the whole map', () => {
+test('sniper damage falls off 20% every 30 m and never runs out of range', () => {
   const sniper = RUSH_WEAPONS.find((w) => w.category === 'Sniper')!;
-  assert.equal(calculateShotDamage(sniper, false, 150), sniper.damage);
+
+  assert.equal(calculateShotDamage(sniper, false, 29), sniper.damage);
+  assert.equal(calculateShotDamage(sniper, false, 30), Math.round(sniper.damage * 0.8));
+  assert.equal(calculateShotDamage(sniper, false, 60), Math.round(sniper.damage * 0.8 ** 2));
+  assert.equal(calculateShotDamage(sniper, false, 90), Math.round(sniper.damage * 0.8 ** 3));
+  assert.equal(
+    calculateShotDamage(sniper, true, 60),
+    Math.round(sniper.damage * 0.8 ** 2 * sniper.headshotMultiplier)
+  );
+  assert.ok(calculateShotDamage(sniper, false, 1000) >= 1, 'long shots still deal at least 1 damage');
 });
 
 test('shotgun deals full damage inside 20 m and nothing beyond it', () => {
