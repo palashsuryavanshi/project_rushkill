@@ -274,16 +274,24 @@ export const HUD: React.FC<HUDProps> = ({
                     r={1.5}
                     fill="#ef4444"
                     stroke="#7f1d1d"
-                    strokeWidth={0.3}
+                    strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
                   />
                 )
               )}
               <g
+                opacity={stats.hp <= 0 ? 0.4 : 1}
                 transform={`translate(${minimapData.playerPos.x} ${minimapData.playerPos.z}) rotate(${playerRotationDeg(
                   minimapData.playerPos.angle
                 )})`}
               >
-                <circle r={1.8} fill="#22d3ee" stroke="#fff" strokeWidth={0.35} />
+                <circle
+                  r={1.8}
+                  fill="#22d3ee"
+                  stroke="#fff"
+                  strokeWidth={1}
+                  vectorEffect="non-scaling-stroke"
+                />
                 <path d="M 0 -3.2 L 1.8 1.6 L 0 0.6 L -1.8 1.6 Z" fill="#a5f3fc" />
               </g>
             </svg>
