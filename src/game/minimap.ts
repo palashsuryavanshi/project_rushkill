@@ -10,9 +10,8 @@
 
 export const MINIMAP_VIEW = { x: -12.2, y: -54, width: 24.4, height: 108 };
 
-/** Hull outline in metres, tapering at the bow (negative y). */
-export const HULL_PATH =
-  'M 0 -54 L 11.4 -46 L 12.2 -38 L 12.2 52 Q 12.2 54 10.2 54 L -10.2 54 Q -12.2 54 -12.2 52 L -12.2 -38 L -11.4 -46 Z';
+/** Hull outline in metres: the full walkable deck rectangle, bow at negative y. */
+export const HULL_PATH = `M ${MINIMAP_VIEW.x} ${MINIMAP_VIEW.y} L ${MINIMAP_VIEW.x + MINIMAP_VIEW.width} ${MINIMAP_VIEW.y} L ${MINIMAP_VIEW.x + MINIMAP_VIEW.width} ${MINIMAP_VIEW.y + MINIMAP_VIEW.height} L ${MINIMAP_VIEW.x} ${MINIMAP_VIEW.y + MINIMAP_VIEW.height} Z`;
 
 export interface MapZone {
   id: string;
@@ -62,7 +61,7 @@ export function projectToMap(x: number, z: number): { x: number; y: number } {
 /**
  * Yaw to SVG rotation in degrees. Positive yaw turns the player left, which is
  * counter-clockwise on a bow-up map where SVG y grows toward the stern, so the
- * sign is inverted. The result is normalised into (-180, 180].
+ * sign is inverted. The result is normalised into [-180, 180).
  */
 export function playerRotationDeg(yaw: number): number {
   const deg = (-yaw * 180) / Math.PI;
