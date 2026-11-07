@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PlayerStats, WeaponDef, KillfeedEntry, StreakBanner, HitmarkerData, FloatingDamage } from '../game/types';
-import { Volume2, VolumeX, Pause, Crosshair, Zap, Award } from 'lucide-react';
+import { Volume2, VolumeX, Pause, Zap, Award } from 'lucide-react';
 import { sound } from '../game/audio';
 
 interface HUDProps {
@@ -35,6 +35,16 @@ export const HUD: React.FC<HUDProps> = ({
 }) => {
   const [ghostHp, setGhostHp] = useState(stats.hp);
   const [isMuted, setIsMuted] = useState(sound.getIsMuted());
+  const [showHitmarker, setShowHitmarker] = useState(false);
+
+  // Reactive hitmarker expiry (was Date.now() inside render, which only
+  // re-evaluated if something else happened to re-render the HUD).
+  useEffect(() => {
+    if (!hitmarker) return;
+    setShowHitmarker(true);
+    const t = setTimeout(() => setShowHitmarker(false), 160);
+    return () => clearTimeout(t);
+  }, [hitmarker]);
 
   // Trailing ghost health bar
   useEffect(() => {
@@ -68,8 +78,8 @@ export const HUD: React.FC<HUDProps> = ({
           {/* Outer Black Vignette */}
           <div className="absolute inset-0 bg-black/95 [mask-image:radial-gradient(circle_at_center,transparent_220px,black_280px)]" />
 
-          {/* Scope Reticle Circle */}
-          <div className="w-[460px] h-[460px] rounded-full border-2 border-black/80 shadow-[0_0_50px_rgba(0,0,0,0.9)] relative flex items-center justify-center">
+          {/* Scope Reticle Circle (viewport-relative so it fits short windows) */}
+          <div className="w-[min(460px,72vmin)] h-[min(460px,72vmin)] rounded-full border-2 border-black/80 shadow-[0_0_50px_rgba(0,0,0,0.9)] relative flex items-center justify-center">
             {/* Center Crosshair Lines */}
             <div className="absolute w-full h-[1.5px] bg-black/90" />
             <div className="absolute h-full w-[1.5px] bg-black/90" />
@@ -91,6 +101,11 @@ export const HUD: React.FC<HUDProps> = ({
       {/* 2. DYNAMIC CROSSHAIR & HITMARKER (Non-scoped) */}
       {!isSniperScoped && (
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+          {/* ADS dot for non-sniper weapons (crosshair is otherwise empty when ADS) */}
+          {stats.isAds && (
+            <div className="w-[3px] h-[3px] rounded-full bg-emerald-400 shadow-[0_0_3px_black]" />
+          )}
+
           {/* Dynamic Crosshair Spread based on speed and ADS */}
           {!stats.isAds && (
             <div className="relative w-8 h-8 flex items-center justify-center">
@@ -124,7 +139,7 @@ export const HUD: React.FC<HUDProps> = ({
           )}
 
           {/* Hitmarker 'X' Tick Animation */}
-          {hitmarker && Date.now() - hitmarker.time < 160 && (
+          {hitmarker && showHitmarker && (
             <div className="absolute -inset-4 flex items-center justify-center animate-in zoom-in-75 duration-75">
               <svg viewBox="0 0 32 32" className="w-8 h-8">
                 <line
@@ -174,7 +189,7 @@ export const HUD: React.FC<HUDProps> = ({
       ))}
 
       {/* 4. TOP-LEFT CLUSTER: MINIMAP & STATUS */}
-      <div className="absolute top-5 left-5 flex flex-col gap-2">
+      <div className="absolute top-[max(1.25rem,env(safe-area-inset-top))] left-[max(1.25rem,env(safe-area-inset-left))] flex flex-col gap-2 max-sm:scale-90 max-sm:origin-top-left">
         {/* Yacht Minimap */}
         {minimapData && (
           <div className="w-36 h-48 bg-slate-950/80 border border-slate-700/80 rounded-xl p-1.5 shadow-xl relative overflow-hidden">
@@ -209,7 +224,7 @@ export const HUD: React.FC<HUDProps> = ({
                 );
               })}
 
-              {/* Player Dot */}
+              {/* Player Dot + facing indicator (angle was previously ignored) */}
               <div
                 className="absolute w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_6px_cyan] -translate-x-1/2 -translate-y-1/2 z-10 border border-white/60"
                 style={{
@@ -217,6 +232,17 @@ export const HUD: React.FC<HUDProps> = ({
                   top: `${50 + (minimapData.playerPos.z / 110) * 80}%`,
                 }}
               />
+              <svg
+                viewBox="0 0 20 20"
+                className="absolute w-5 h-5 z-10 pointer-events-none"
+                style={{
+                  left: `calc(${50 + (minimapData.playerPos.x / 26) * 40}% - 10px)`,
+                  top: `calc(${50 + (minimapData.playerPos.z / 110) * 80}% - 10px)`,
+                  transform: `rotate(${(minimapData.playerPos.angle * 180) / Math.PI}deg)`,
+                }}
+              >
+                <path d="M10 1 L14 12 L10 9 L6 12 Z" fill="rgba(165,243,252,0.9)" />
+              </svg>
             </div>
           </div>
         )}
@@ -246,9 +272,9 @@ export const HUD: React.FC<HUDProps> = ({
               e.stopPropagation();
               toggleMute();
             }}
-            tabIndex={-1}
             aria-label="Toggle Mute"
-            className="p-2 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer pointer-events-auto"
+            title="Toggle Mute (M)"
+            className="p-2 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer pointer-events-auto focus-visible:outline-2 focus-visible:outline-amber-400"
           >
             {isMuted ? (
               <VolumeX className="w-4 h-4 text-red-400 pointer-events-none" />
@@ -261,9 +287,9 @@ export const HUD: React.FC<HUDProps> = ({
               e.stopPropagation();
               onPause();
             }}
-            tabIndex={-1}
             aria-label="Pause Game"
-            className="p-2 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer pointer-events-auto"
+            title="Pause Game (P)"
+            className="p-2 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer pointer-events-auto focus-visible:outline-2 focus-visible:outline-amber-400"
           >
             <Pause className="w-4 h-4 pointer-events-none" />
           </button>
@@ -271,7 +297,7 @@ export const HUD: React.FC<HUDProps> = ({
       </div>
 
       {/* 6. TOP-RIGHT CLUSTER: REAL-TIME KILLFEED */}
-      <div className="absolute top-5 right-5 flex flex-col gap-1.5 max-w-xs w-72">
+      <div className="absolute top-[max(1.25rem,env(safe-area-inset-top))] right-[max(1.25rem,env(safe-area-inset-right))] flex flex-col gap-1.5 max-w-xs w-72 max-sm:w-52">
         {killfeed.slice(-4).map((entry) => (
           <div
             key={entry.id}
@@ -308,7 +334,7 @@ export const HUD: React.FC<HUDProps> = ({
       </div>
 
       {/* 8. BOTTOM-LEFT CLUSTER: HEALTH & SPEEDOMETER */}
-      <div className="absolute bottom-6 left-6 flex flex-col gap-2 max-w-sm">
+      <div className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-[max(1.5rem,env(safe-area-inset-left))] flex flex-col gap-2 max-w-sm max-sm:max-w-[60vw]">
         {/* Slide / Bhop Indicator */}
         {stats.isSliding && (
           <div className="px-3 py-1 rounded bg-amber-500/90 border border-amber-300 text-black font-black text-xs uppercase tracking-widest self-start flex items-center gap-1.5 shadow-lg shadow-amber-500/30">
@@ -358,13 +384,13 @@ export const HUD: React.FC<HUDProps> = ({
 
       {/* FPS readout overlay */}
       {fpsOverlay && (
-        <div className="fixed bottom-28 right-6 pointer-events-none z-40">
+        <div className="absolute bottom-28 right-6 pointer-events-none z-40">
           {fpsOverlay}
         </div>
       )}
 
       {/* 9. BOTTOM-RIGHT CLUSTER: WEAPON & AMMO */}
-      <div className="absolute bottom-6 right-6 flex flex-col items-end gap-2 max-w-sm">
+      <div className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-[max(1.5rem,env(safe-area-inset-right))] flex flex-col items-end gap-2 max-w-sm max-sm:max-w-[60vw]">
         <div className="bg-slate-950/85 border border-slate-800 p-4 rounded-2xl shadow-2xl flex flex-col items-end gap-1.5">
           {/* Weapon Name & Category Badge */}
           <div className="flex items-center gap-2">

@@ -59,6 +59,7 @@ export interface BotState {
   score: number;
   strafeDir: number;
   strafeTimer: number;
+  stuckTimer: number;
   // Jump mechanics
   canJump: boolean;
   jumpCooldown: number;
@@ -474,6 +475,7 @@ export function createBot(
     score: 0,
     strafeDir: Math.random() > 0.5 ? 1 : -1,
     strafeTimer: 0.5 + Math.random() * 0.8,
+    stuckTimer: 0,
     canJump: true,
     jumpCooldown: 0,
     isGrounded: true,
@@ -573,12 +575,17 @@ export function updateBotAI(
       bot.nameSprite.visible = true;
       bot.debrisGroup.visible = false;
 
-      // Pick random waypoint away from players
+      // Pick a random waypoint away from players (random among all valid, not the
+      // first one, so spawns are not predictable).
       const validTargets = potentialTargets.filter((t) => t.hp > 0);
-      const chosenWp =
-        waypoints.find((w) => {
-          return validTargets.every((t) => w.pos.distanceTo(t.pos) > 24);
-        }) || waypoints[Math.floor(Math.random() * waypoints.length)];
+      const farWps = waypoints.filter((w) => validTargets.every((t) => w.pos.distanceTo(t.pos) > 24));
+      const pool = farWps.length > 0 ? farWps : waypoints;
+      const chosenWp = pool[Math.floor(Math.random() * pool.length)];
+      // Clear residual velocity/timers so the bot does not inherit death momentum.
+      bot.velocity.set(0, 0, 0);
+      bot.stuckTimer = 0;
+      bot.suspiciousPos = null;
+      bot.suspiciousTimer = 0;
 
       bot.pos.copy(chosenWp.pos);
       bot.currentWaypointId = chosenWp.id;
@@ -628,6 +635,8 @@ export function updateBotAI(
   const diffCfg = DIFFICULTY_SETTINGS[bot.difficulty];
   let visibleTarget: TargetEntity | null = null;
   let closestVisibleDist = Infinity;
+  let heardTarget: TargetEntity | null = null;
+  let closestHeardDist = Infinity;
 
   // Eye height for raycasts
   const eyePos = { x: bot.pos.x, y: bot.pos.y + 1.6, z: bot.pos.z };
@@ -650,8 +659,11 @@ export function updateBotAI(
         diffCfg.visionFovDeg
       );
 
-      // Even if behind, bot can hear very close footsteps (< hearingRangeFootsteps)
-      const isHeard = dist < diffCfg.hearingRangeFootsteps;
+      // Hearing works through walls and outside the FOV cone: footsteps at close range,
+      // gunfire a bit further. Previously hearing still required line of sight, so bots
+      // could not hear behind walls at all and hearingRangeGunfire was never used.
+      const isHeard =
+        dist < diffCfg.hearingRangeFootsteps || dist < diffCfg.hearingRangeGunfire;
 
       if (!inFov && !isHeard) continue;
 
@@ -666,6 +678,9 @@ export function updateBotAI(
           closestVisibleDist = dist;
           visibleTarget = target;
         }
+      } else if (isHeard && dist < closestHeardDist) {
+        closestHeardDist = dist;
+        heardTarget = target;
       }
     }
   }
@@ -688,8 +703,11 @@ export function updateBotAI(
         bot.awareness = 'engaged';
       }
     } else if (bot.awareness === 'searching' || bot.awareness === 'recovering') {
-      // Re-acquired target while searching
-      bot.awareness = 'engaged';
+      // Re-acquired target while searching. Go back through ALERT (short delay) instead
+      // of instantly engaging, so the bot cannot insta-kill the frame it spots you.
+      bot.awareness = 'alert';
+      bot.currentReactionDelay = calculateReactionDelay(bot.difficulty, bot.personality, closestVisibleDist) * 0.6;
+      bot.reactionTimer = bot.currentReactionDelay;
     }
   } else {
     // Target is NOT currently visible
@@ -705,12 +723,34 @@ export function updateBotAI(
         bot.currentTargetId = null;
         bot.lastKnownPosition = null;
       }
+    } else if (bot.awareness === 'recovering') {
+      // Recovering must have an exit or the bot is stuck in cover forever.
+      bot.searchTimer -= dt;
+      if (bot.searchTimer <= 0) {
+        bot.awareness = 'unaware';
+        bot.currentTargetId = null;
+        bot.lastKnownPosition = null;
+      }
+    } else if (heardTarget && bot.awareness === 'unaware') {
+      // Heard footsteps/gunfire without visual contact: investigate the noise.
+      bot.awareness = 'suspicious';
+      bot.suspiciousPos = heardTarget.pos.clone();
+      bot.lastKnownPosition = heardTarget.pos.clone();
+      bot.suspiciousTimer = 2.5;
+    } else if (bot.awareness === 'suspicious') {
+      bot.suspiciousTimer -= dt;
+      if (bot.suspiciousTimer <= 0) {
+        bot.awareness = 'unaware';
+        bot.lastKnownPosition = null;
+        bot.suspiciousPos = null;
+      }
     }
   }
 
   // Low HP check -> Recovering / Cover Seeking
-  if (bot.hp < 30 && bot.awareness !== 'recovering' && Math.random() < diffCfg.coverSeekingChance * dt) {
+  if (bot.hp < 30 && bot.awareness !== 'recovering' && bot.awareness !== 'engaged' && Math.random() < diffCfg.coverSeekingChance * dt) {
     bot.awareness = 'recovering';
+    bot.searchTimer = 6.0; // bounded stay in cover; decremented in the recovering branch above
   }
 
   // Badge icon
@@ -796,8 +836,15 @@ export function updateBotAI(
       break;
     }
 
+    case 'suspicious': {
+      moveSpeed = 6.0; // Cautiously investigate the noise
+      if (bot.suspiciousPos) {
+        moveTarget = bot.suspiciousPos;
+      }
+      break;
+    }
+
     case 'unaware':
-    case 'suspicious':
     default: {
       moveSpeed = 5.2; // Normal patrol walk
       moveTarget = wp.pos;
@@ -837,22 +884,46 @@ export function updateBotAI(
     bot.strafeTimer = 0.4 + Math.random() * 0.7;
   }
 
+  // Stuck detection: if barely moving while far from the goal, bail to a new waypoint.
+  if (distToTarget > 3.0 && bot.velocity.length() < 0.6) {
+    bot.stuckTimer += dt;
+    if (bot.stuckTimer > 1.2 && wp.neighbors.length > 0) {
+      bot.currentWaypointId = wp.neighbors[Math.floor(Math.random() * wp.neighbors.length)];
+      bot.stuckTimer = 0;
+    }
+  } else {
+    bot.stuckTimer = 0;
+  }
+
   if (distToTarget > 0.3) {
-    toTarget.normalize();
-    
-    // Proper physics-based movement with acceleration
-    const acceleration = toTarget.multiplyScalar(moveSpeed * 10.0); // Acceleration
-    bot.velocity.add(acceleration.multiplyScalar(dt));
-    
-    // Apply air resistance
-    bot.velocity.multiplyScalar(0.9);
-    
+    const dir = toTarget.clone().normalize();
+
+    // Proper physics-based movement with acceleration (do not mutate `dir`).
+    bot.velocity.addScaledVector(dir, moveSpeed * 10.0 * dt);
+
+    // Apply air resistance (dt-scaled: a plain 0.9 per frame drains twice as fast at 120 fps).
+    bot.velocity.multiplyScalar(Math.pow(0.9, dt * 60));
+
     // Add tactical lateral strafing if engaged
     if (bot.awareness === 'engaged') {
-      const strafeVec = new THREE.Vector3(-toTarget.z, 0, toTarget.x).multiplyScalar(
+      const strafeVec = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(
         bot.strafeDir * 2.2 * (bot.difficulty === 'elite' ? 1.4 : 1.0)
       );
-      bot.velocity.add(strafeVec.multiplyScalar(dt));
+      bot.velocity.addScaledVector(strafeVec, dt);
+    }
+
+    // Light separation so bots don't stack on top of each other.
+    for (const other of potentialTargets) {
+      if (other.id === bot.id) continue;
+      const dx = bot.pos.x - other.pos.x;
+      const dz = bot.pos.z - other.pos.z;
+      const dSq = dx * dx + dz * dz;
+      if (dSq > 0.0001 && dSq < 1.44) {
+        const d = Math.sqrt(dSq);
+        const push = ((1.2 - d) / 1.2) * 2.5;
+        bot.velocity.x += (dx / d) * push * dt;
+        bot.velocity.z += (dz / d) * push * dt;
+      }
     }
 
     // Limit maximum velocity
@@ -864,8 +935,8 @@ export function updateBotAI(
     // Integrate velocity to position
     bot.pos.add(bot.velocity.clone().multiplyScalar(dt));
   } else {
-    // Decelerate when close to target
-    bot.velocity.multiplyScalar(0.8);
+    // Decelerate when close to target (dt-scaled like the cruise drag above)
+    bot.velocity.multiplyScalar(Math.pow(0.8, dt * 60));
     bot.pos.add(bot.velocity.clone().multiplyScalar(dt));
   }
 
