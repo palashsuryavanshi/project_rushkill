@@ -5,6 +5,7 @@ import { RUSH_WEAPONS, getWeaponById, calculateShotDamage } from './weapons';
 import { buildHijackedMap, MapData, BoxCollider } from './mapHijacked';
 import { buildGunModel, GunRig } from './gunModels';
 import { BotState, BotPersonality, createBot, updateBotAI, triggerBotHit } from './botAI';
+import { findClosestBotHit, applySpread, drainPendingHits, type PendingHit } from './combat';
 import { evaluateKillScore, checkMatchEnd } from './rules';
 import { sound } from './audio';
 import { statsChanged, minimapChanged, LastMinimap } from './notifyGate';
@@ -70,7 +71,7 @@ export class GameEngine {
   private flashTimer: number = 0;
   private gunBobTime: number = 0;
   // Single-registration pending-hit queue (projectile travel / delay)
-  private pendingHits: Array<{ bot: BotState; isHead: boolean; damage: number; point: THREE.Vector3; dist: number; delay: number }> = [];
+  private pendingHits: PendingHit[] = [];
 
   // Stats & Scoring
   public hp: number = 100;
@@ -655,71 +656,12 @@ export class GameEngine {
     // Movement / stance spread
     const movementSpread = this.playerVel.length() * 0.002;
     const stanceSpread = this.isSliding ? 0.08 : 0.02;
-    const totalSpread = spreadRad + movementSpread + stanceSpread;
-
-    const angle = Math.random() * Math.PI * 2;
-    const r = Math.random() * totalSpread;
-    const spreadX = Math.cos(angle) * r;
-    const spreadY = Math.sin(angle) * r;
-    aimDir.x += spreadX;
-    aimDir.y += spreadY;
-    aimDir.normalize();
+    applySpread(aimDir, spreadRad + movementSpread + stanceSpread);
 
     const rayOrigin = this.camera.position.clone();
 
     // Padded, rotation-agnostic AABB hit test (unlimited range ceiling via far clip 300m)
-    const rayBox = (origin: THREE.Vector3, dir: THREE.Vector3, min: THREE.Vector3, max: THREE.Vector3): number | null => {
-      let tmin = 0.1; // near clip
-      let tmax = 300; // far clip
-      for (const axis of ['x', 'y', 'z'] as const) {
-        const o = origin[axis];
-        const d = dir[axis];
-        if (Math.abs(d) < 1e-8) {
-          if (o < min[axis] || o > max[axis]) return null;
-        } else {
-          let t1 = (min[axis] - o) / d;
-          let t2 = (max[axis] - o) / d;
-          if (t1 > t2) {
-            const tmp = t1; t1 = t2; t2 = tmp;
-          }
-          tmin = Math.max(tmin, t1);
-          tmax = Math.min(tmax, t2);
-          if (tmin > tmax) return null;
-        }
-      }
-      return tmax >= 0.1 ? tmin : null;
-    };
-
-    let closestHitBot: { bot: BotState; isHead: boolean; point: THREE.Vector3; dist: number } | null = null;
-    let closestDist = Infinity;
-
-    for (const bot of this.bots) {
-      if (bot.isDead) continue;
-      const px = bot.pos.x, py = bot.pos.y, pz = bot.pos.z;
-
-      const bodyHit = rayBox(
-        rayOrigin, aimDir,
-        new THREE.Vector3(px - 0.6, py + 0.4, pz - 0.5),
-        new THREE.Vector3(px + 0.6, py + 1.65, pz + 0.5)
-      );
-      const headHit = rayBox(
-        rayOrigin, aimDir,
-        new THREE.Vector3(px - 0.45, py + 1.5, pz - 0.45),
-        new THREE.Vector3(px + 0.45, py + 2.3, pz + 0.45)
-      );
-
-      if (headHit !== null && (bodyHit === null || headHit <= bodyHit + 0.15)) {
-        if (headHit < closestDist) {
-          closestDist = headHit;
-          closestHitBot = { bot, isHead: true, point: rayOrigin.clone().addScaledVector(aimDir, headHit), dist: headHit };
-        }
-      } else if (bodyHit !== null) {
-        if (bodyHit < closestDist) {
-          closestDist = bodyHit;
-          closestHitBot = { bot, isHead: false, point: rayOrigin.clone().addScaledVector(aimDir, bodyHit), dist: bodyHit };
-        }
-      }
-    }
+    const closestHitBot = findClosestBotHit(rayOrigin, aimDir, this.bots);
 
     // One tracer per trigger pull — never spawn parallel pellets visually
     const muzzleWorld = new THREE.Vector3();
@@ -743,7 +685,7 @@ export class GameEngine {
       const damage = Math.max(1, Math.round(calculateShotDamage(this.activeWeapon, isHead, dist) * pelletCount));
       const travelDelay = dist / this.activeWeapon.bulletSpeed;
 
-      const pendingHit = { bot, isHead, damage, point, dist, delay: Math.max(travelDelay, 0.05) };
+      const pendingHit: PendingHit = { bot, isHead, damage, point, dist, delay: Math.max(travelDelay, 0.05) };
       // Execute immediately for instantaneous projectile (named for clarity) but keep queue for consistency
       this.pendingHits.push(pendingHit);
     }
@@ -755,7 +697,7 @@ export class GameEngine {
     }
   }
 
-  private applyPlayerHit(pending: { bot: BotState; isHead: boolean; damage: number; point: THREE.Vector3; dist: number }) {
+  private applyPlayerHit(pending: PendingHit) {
     const { bot, isHead, point, dist } = pending;
     const damage = pending.damage;
     const isKill = triggerBotHit(bot, damage, isHead);
@@ -1249,21 +1191,7 @@ export class GameEngine {
   }
 
   private updatePendingHits(dt: number) {
-    if (this.pendingHits.length === 0) return;
-
-    for (let i = this.pendingHits.length - 1; i >= 0; i--) {
-      const pending = this.pendingHits[i];
-      pending.delay -= dt;
-
-      if (pending.delay > 0) continue;
-
-      // Validate bot is still alive at impact time
-      if (!pending.bot.isDead) {
-        this.applyPlayerHit(pending);
-      }
-
-      this.pendingHits.splice(i, 1);
-    }
+    drainPendingHits(this.pendingHits, dt, (hit) => this.applyPlayerHit(hit));
   }
 
   private notifyStats(force: boolean = false) {
