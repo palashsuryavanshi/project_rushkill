@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { WeaponDef, PlayerStats, KillfeedEntry, StreakBanner, HitmarkerData, FloatingDamage, GameSettings, MatchConfig, BotDifficulty } from './types';
 import { RUSH_WEAPONS, getWeaponById, calculateShotTotalDamage } from './weapons';
 import { buildHijackedMap, MapData, BoxCollider } from './mapHijacked';
@@ -244,8 +243,8 @@ export class GameEngine {
 
   private initScene() {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x7ec8e3); // Tropical bright Caribbean sky
-    this.scene.fog = new THREE.FogExp2(0x8bc3d6, 0.0035);
+    this.scene.background = new THREE.Color(0xffca9c); // Sunset horizon fill behind the dome
+    this.scene.fog = new THREE.FogExp2(0xe6a983, 0.0026);
 
     this.camera = new THREE.PerspectiveCamera(
       this.settings.fov,
@@ -255,34 +254,38 @@ export class GameEngine {
     );
     this.camera.rotation.order = 'YXZ';
 
-    // Studio Environment map
+    // Build Hijacked Yacht Map first: its sky dome feeds the environment map below
+    this.mapData = buildHijackedMap();
+    this.scene.add(this.mapData.sceneGroup);
+
+    // Image-based lighting generated from the painted sunset sky dome.
+    // Explicit near/far: PMREMGenerator defaults to far = 100, which would clip the
+    // 380 m dome to black.
     const pmrem = new THREE.PMREMGenerator(this.renderer!);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    const skyScene = new THREE.Scene();
+    skyScene.add(this.mapData.skyDome.clone());
+    this.scene.environment = pmrem.fromScene(skyScene, 0.04, 0.1, 450).texture;
     pmrem.dispose();
 
-    // Balanced Lighting Rig
-    const sunLight = new THREE.DirectionalLight(0xfffaed, 2.2);
+    // Sunset lighting rig
+    const sunLight = new THREE.DirectionalLight(0xffd0a0, 2.4);
     this.sunLight = sunLight;
-    sunLight.position.set(45, 60, -35);
+    sunLight.position.set(38, 30, 58);
     sunLight.castShadow = !this.isSoftwareGl && this.graphicsTierApplied === 'high';
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.bias = -0.00005;
     sunLight.shadow.normalBias = 0.03;
-    sunLight.shadow.camera.left = -80;
-    sunLight.shadow.camera.right = 80;
-    sunLight.shadow.camera.top = 80;
-    sunLight.shadow.camera.bottom = -80;
+    sunLight.shadow.camera.left = -85;
+    sunLight.shadow.camera.right = 85;
+    sunLight.shadow.camera.top = 85;
+    sunLight.shadow.camera.bottom = -85;
     sunLight.shadow.camera.near = 0.5;
     sunLight.shadow.camera.far = 200;
     this.scene.add(sunLight);
 
-    const hemiLight = new THREE.HemisphereLight(0xbbeeff, 0x334455, 1.0);
+    const hemiLight = new THREE.HemisphereLight(0xa9c9e8, 0x5d4335, 0.65);
     this.scene.add(hemiLight);
-
-    // Build Hijacked Yacht Map
-    this.mapData = buildHijackedMap();
-    this.scene.add(this.mapData.sceneGroup);
 
     // Attach gun rig camera container
     this.camera.add(this.gunCameraRig);

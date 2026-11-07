@@ -543,7 +543,10 @@ export function buildHijackedMap(): MapData {
   // ==========================================
   // 7. SUNSET SKY DOME & SUN DISC
   // ==========================================
-  const skyGeo = new THREE.SphereGeometry(400, 32, 16);
+  // Radius 380 (not 400) so the far side of the dome stays inside the 450 m camera far
+  // plane from the deck ends: worst case |camera| ~= 54.5 m, so 380 + 54.5 = 434.5 m.
+  const SKY_DOME_RADIUS = 380;
+  const skyGeo = new THREE.SphereGeometry(SKY_DOME_RADIUS, 32, 16);
   const skyPositions = skyGeo.attributes.position;
   const skyColors = new Float32Array(skyPositions.count * 3);
   const horizonColor = new THREE.Color(0xffca9c);
@@ -552,7 +555,7 @@ export function buildHijackedMap(): MapData {
   for (let i = 0; i < skyPositions.count; i++) {
     // Vertex colours key off the normalised sphere height (-1..1): warm horizon band
     // hugging the waterline, cool blue taking over towards the zenith.
-    const t = THREE.MathUtils.clamp((skyPositions.getY(i) / 400 - 0.05) / 0.65, 0, 1);
+    const t = THREE.MathUtils.clamp((skyPositions.getY(i) / SKY_DOME_RADIUS - 0.05) / 0.65, 0, 1);
     blendColor.copy(horizonColor).lerp(zenithColor, t);
     skyColors[i * 3] = blendColor.r;
     skyColors[i * 3 + 1] = blendColor.g;
