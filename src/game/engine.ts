@@ -14,6 +14,7 @@ import { HealthRegen } from './healthRegen';
 import { evaluateKillScore, checkMatchEnd } from './rules';
 import { sound } from './audio';
 import { statsChanged, minimapChanged, LastMinimap } from './notifyGate';
+import { ScoreboardEntry, PLAYER_SCOREBOARD_ID } from './scoreboard';
 
 export interface EngineCallbacks {
   onStatsUpdate: (stats: PlayerStats) => void;
@@ -23,6 +24,7 @@ export interface EngineCallbacks {
   onFloatingDamage: (dmg: FloatingDamage) => void;
   onMatchEnd: (winner: 'player' | 'bots' | 'draw') => void;
   onMinimapUpdate: (playerPos: { x: number; z: number; angle: number }, bots: { id: string; x: number; z: number; isDead: boolean }[]) => void;
+  onScoreboardUpdate: (entries: ScoreboardEntry[]) => void;
   onPointerLockChange?: (locked: boolean) => void;
   onWebGLError?: (errorMsg: string) => void;
   onFpsSample?: (sample: { fps: number; frameMs: number; calls: number } | null) => void;
@@ -120,6 +122,7 @@ export class GameEngine {
   public settings: GameSettings;
   private lastStatsPayload: PlayerStats | null = null;
   private lastMinimapSample: LastMinimap | null = null;
+  private lastScoreboardAt = 0;
 
   constructor(container: HTMLDivElement, settings: GameSettings, callbacks: EngineCallbacks) {
     this.container = container;
@@ -518,6 +521,7 @@ export class GameEngine {
 
     this.requestPointerLock(true);
     this.notifyStats(true);
+    this.notifyScoreboard(performance.now(), true);
     this.callbacks.onFpsSample?.(null);
     this.pendingHits = [];
   }
@@ -707,6 +711,7 @@ export class GameEngine {
       scoreRes.banners.forEach((b) => this.callbacks.onStreakBanner(b));
 
       if (this.streak >= 3) sound.playStreakFanfare();
+      this.notifyScoreboard(performance.now(), true);
 
       const matchState = checkMatchEnd({
         playerScore: this.kills,
@@ -753,6 +758,9 @@ export class GameEngine {
         sound.playHurt();
 
         if (this.hp <= 0) {
+          bot.kills++;
+          bot.score += 100;
+          this.notifyScoreboard(performance.now(), true);
           this.killPlayer(bot.name, bot.weapon.name, false);
         } else {
           this.notifyStats(true);
@@ -780,6 +788,7 @@ export class GameEngine {
           if (isKilled) {
             bot.kills++;
             bot.score += 100;
+            this.notifyScoreboard(performance.now(), true);
 
             this.callbacks.onKillfeed({
               id: `kf_${Date.now()}_${Math.random()}`,
@@ -826,6 +835,7 @@ export class GameEngine {
     });
 
     this.notifyStats(true);
+    this.notifyScoreboard(performance.now(), true);
   }
 
   private tickPlayerRespawn(dt: number) {
@@ -858,6 +868,7 @@ export class GameEngine {
     this.keysHeld.clear();
     this.mouseButtonsHeld.clear();
     this.notifyStats(true);
+    this.notifyScoreboard(performance.now(), true);
   }
 
   private updateHealthRegen(dt: number) {
@@ -1003,6 +1014,31 @@ export class GameEngine {
     );
   }
 
+  private notifyScoreboard(nowMs: number, force = false) {
+    if (!force && nowMs - this.lastScoreboardAt < 500) return;
+    this.lastScoreboardAt = nowMs;
+    this.callbacks.onScoreboardUpdate([
+      {
+        id: PLAYER_SCOREBOARD_ID,
+        name: 'You',
+        score: this.score,
+        kills: this.kills,
+        deaths: this.deaths,
+        isPlayer: true,
+        isDead: this.isPlayerDead,
+      },
+      ...this.bots.map((b) => ({
+        id: b.id,
+        name: b.name,
+        score: b.score,
+        kills: b.kills,
+        deaths: b.deaths,
+        isPlayer: false,
+        isDead: b.isDead,
+      })),
+    ]);
+  }
+
   private startLoop() {
     let lastTime = performance.now();
 
@@ -1103,6 +1139,7 @@ export class GameEngine {
             this.matchLoop.markStatsSent();
           }
           this.notifyMinimap(hud.minimapDue);
+          this.notifyScoreboard(now);
         }
       }
 

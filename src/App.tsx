@@ -13,6 +13,7 @@ import {
   MenuScreen,
 } from './game/types';
 import { RUSH_WEAPONS } from './game/weapons';
+import { ScoreboardEntry } from './game/scoreboard';
 import { MainMenu } from './components/MainMenu';
 import { GameSetupScreen } from './components/GameSetupScreen';
 import { LoadoutScreen } from './components/LoadoutScreen';
@@ -84,6 +85,7 @@ export default function App() {
     bots: { id: string; x: number; z: number; isDead: boolean }[];
   } | null>(null);
   const [fpsSample, setFpsSample] = useState<{ fps: number; frameMs: number; calls: number } | null>(null);
+  const [scoreboard, setScoreboard] = useState<ScoreboardEntry[]>([]);
   const [webGlError, setWebGlError] = useState<string | null>(null);
   const [engineRetryKey, setEngineRetryKey] = useState<number>(0);
 
@@ -132,6 +134,9 @@ export default function App() {
         },
         onMinimapUpdate: (playerPos, bots) => {
           setMinimapData({ playerPos, bots });
+        },
+        onScoreboardUpdate: (entries) => {
+          setScoreboard(entries);
         },
         onPointerLockChange: (locked) => {
           setIsPointerLocked(locked);
