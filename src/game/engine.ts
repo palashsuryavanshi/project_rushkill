@@ -3,6 +3,17 @@ import { WeaponDef, PlayerStats, KillfeedEntry, StreakBanner, HitmarkerData, Flo
 import { RUSH_WEAPONS, getWeaponById, calculateShotTotalDamage } from './weapons';
 import { buildHijackedMap, MapData, BoxCollider } from './mapHijacked';
 import { buildGunModel, GunRig } from './gunModels';
+import {
+  computeAdsPosition,
+  stepRecoil,
+  sampleReloadPose,
+  sampleCyclePose,
+  ZERO_POSE,
+  RECOIL_PROFILES,
+  CycleKind,
+  RecoilState,
+  PoseOffsets,
+} from './viewmodelPose';
 import { BotState, BotPersonality, createBot, updateBotAI, triggerBotHit } from './botAI';
 import { findClosestBotHit, findClosestBoxHit, isBlockedByCover, applySpread, computeShotSpread, resolveShotAim, drainPendingHits, RAY_FAR, type PendingHit } from './combat';
 import { PlayerPhysics, shouldQueueJump } from './playerPhysics';
@@ -69,6 +80,21 @@ export class GameEngine {
   private recoilPitch: number = 0;
   private recoilYaw: number = 0;
   private flashTimer: number = 0;
+
+  // Viewmodel animation state (ADS / recoil / reload / pump-lever cycle)
+  private reloadDuration = 0;
+  private cycleTimer = 0;
+  private cycleDuration = 0;
+  private cycleKind: CycleKind = 'none';
+  private recoilState: RecoilState = { offset: 0, velocity: 0 };
+  private shotKick = false;
+  private leftHandRest = new THREE.Vector3();
+  private leftHandRestRot = new THREE.Euler();
+  private magazineRestY = 0;
+  private boltRestZ = 0;
+  private pumpRestZ = 0;
+  private leverRestX = 0;
+
   // Single-registration pending-hit queue (projectile travel / delay)
   private pendingHits: PendingHit[] = [];
 
@@ -314,9 +340,22 @@ export class GameEngine {
     this.gunRig = buildGunModel(weapon);
     this.gunCameraRig.add(this.gunRig.group);
 
-    // Initial position
-    this.gunRig.group.position.set(0.24, -0.22, -0.42);
-    this.gunRig.group.rotation.set(0, 0, 0);
+    // Capture the rig's rest transforms so every pose is additive from here.
+    this.leftHandRest.copy(this.gunRig.leftHand.position);
+    this.leftHandRestRot.copy(this.gunRig.leftHand.rotation);
+    this.magazineRestY = this.gunRig.magazine?.position.y ?? 0;
+    this.boltRestZ = this.gunRig.bolt?.position.z ?? 0;
+    this.pumpRestZ = this.gunRig.pump?.position.z ?? 0;
+    this.leverRestX = this.gunRig.lever?.rotation.x ?? 0;
+
+    // Reset animation state and snap straight to the idle pose.
+    this.cycleTimer = 0;
+    this.cycleKind = 'none';
+    this.recoilState = { offset: 0, velocity: 0 };
+    this.isReloading = false;
+    this.reloadTimer = 0;
+    this.reloadDuration = 0;
+    
 
     this.notifyStats(true);
   }
