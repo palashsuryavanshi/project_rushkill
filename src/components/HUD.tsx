@@ -232,93 +232,33 @@ export const HUD: React.FC<HUDProps> = ({
               viewBox={`${MINIMAP_VIEW.x} ${MINIMAP_VIEW.y} ${MINIMAP_VIEW.width} ${MINIMAP_VIEW.height}`}
               preserveAspectRatio="xMidYMid meet"
               className="w-full h-36"
-              aria-hidden="true"
+              role="img"
+              aria-label="Afterglow radar"
             >
-              <defs>
-                <clipPath id="radar-hull-clip">
-                  <path d={HULL_PATH} />
-                </clipPath>
-              </defs>
-              <path d={HULL_PATH} fill="#1e293b" />
+              <path d={HULL_PATH} fill="#1e293b" stroke="#64748b" strokeWidth={0.35} />
               {MAP_ZONES.map((zone) => (
                 <rect
                   key={zone.id}
-                  x={zone.x}
-                  y={zone.y}
-                  width={zone.width}
-                  height={zone.height}
-                  fill="none"
-                  stroke="#334155"
-                  strokeWidth={1}
-                  vectorEffect="non-scaling-stroke"
+                  x={zone.x} y={zone.y} width={zone.width} height={zone.height}
+                  fill="none" stroke="#334155" strokeWidth={0.25}
                 />
               ))}
               {MAP_FEATURES.map((f) =>
                 f.kind === 'circle' ? (
-                  <circle
-                    key={f.id}
-                    cx={f.x}
-                    cy={f.y}
-                    r={f.radius ?? 0}
-                    fill="rgba(34,211,238,0.18)"
-                    stroke="rgba(34,211,238,0.6)"
-                    strokeWidth={1}
-                    vectorEffect="non-scaling-stroke"
-                  />
+                  <circle key={f.id} cx={f.x} cy={f.y} r={f.radius ?? 0} fill="rgba(34,211,238,0.18)" stroke="rgba(34,211,238,0.6)" strokeWidth={0.3} />
                 ) : (
-                  <rect
-                    key={f.id}
-                    x={f.x}
-                    y={f.y}
-                    width={f.width}
-                    height={f.height}
-                    fill="rgba(253,230,138,0.15)"
-                    stroke="rgba(253,230,138,0.6)"
-                    strokeWidth={1}
-                    vectorEffect="non-scaling-stroke"
-                  />
+                  <rect key={f.id} x={f.x} y={f.y} width={f.width} height={f.height} fill="rgba(253,230,138,0.15)" stroke="rgba(253,230,138,0.6)" strokeWidth={0.3} />
                 )
               )}
-              <g clipPath="url(#radar-hull-clip)">
-                {minimapData.bots.map((b) => {
-                  if (b.isDead) return null;
-                  const botPos = projectToMap(b.x, b.z);
-                  return (
-                    <circle
-                      key={b.id}
-                      cx={botPos.x}
-                      cy={botPos.y}
-                      r={1.5}
-                      fill="#ef4444"
-                      stroke="#7f1d1d"
-                      strokeWidth={1}
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  );
-                })}
-                <g
-                  opacity={stats.respawnTimeRemaining > 0 ? 0.4 : 1}
-                  transform={`translate(${playerMapPos!.x} ${playerMapPos!.y}) rotate(${playerRotationDeg(
-                    minimapData.playerPos.angle
-                  )})`}
-                >
-                  <circle
-                    r={1.8}
-                    fill="#22d3ee"
-                    stroke="#fff"
-                    strokeWidth={1}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <path d="M 0 -4.2 L 2.2 2.0 L 0 0.8 L -2.2 2.0 Z" fill="#ecfeff" />
-                </g>
+              {minimapData.bots.map((b) =>
+                b.isDead ? null : (
+                  <circle key={b.id} cx={b.x} cy={b.z} r={1.5} fill="#ef4444" stroke="#7f1d1d" strokeWidth={0.3} />
+                )
+              )}
+              <g transform={`translate(${minimapData.playerPos.x} ${minimapData.playerPos.z}) rotate(${playerRotationDeg(minimapData.playerPos.angle)})`}>
+                <circle r={1.8} fill="#22d3ee" stroke="#fff" strokeWidth={0.35} />
+                <path d="M 0 -3.2 L 1.8 1.6 L 0 0.6 L -1.8 1.6 Z" fill="#a5f3fc" />
               </g>
-              <path
-                d={HULL_PATH}
-                fill="none"
-                stroke="#64748b"
-                strokeWidth={1}
-                vectorEffect="non-scaling-stroke"
-              />
             </svg>
           </div>
         )}
