@@ -3,6 +3,7 @@ import { PlayerStats, WeaponDef, KillfeedEntry, StreakBanner, HitmarkerData, Flo
 import { respawnProgress } from '../game/respawn';
 import { formatKillfeed } from '../game/killfeed';
 import { MINIMAP_VIEW, HULL_PATH, MAP_ZONES, MAP_FEATURES, projectToMap, playerRotationDeg } from '../game/minimap';
+import { buildScoreboard, ScoreboardEntry } from '../game/scoreboard';
 import { Volume2, VolumeX, Pause, Zap, Award } from 'lucide-react';
 import { sound } from '../game/audio';
 
@@ -19,6 +20,9 @@ interface HUDProps {
     playerPos: { x: number; z: number; angle: number };
     bots: { id: string; x: number; z: number; isDead: boolean }[];
   } | null;
+  scoreboard: ScoreboardEntry[];
+  showScoreboard: boolean;
+  onToggleScoreboard: () => void;
   fpsOverlay?: React.ReactNode;
   onPause: () => void;
 }
@@ -33,6 +37,9 @@ export const HUD: React.FC<HUDProps> = ({
   matchTimeSec,
   scoreLimit,
   minimapData,
+  scoreboard,
+  showScoreboard,
+  onToggleScoreboard,
   fpsOverlay,
   onPause,
 }) => {
@@ -61,10 +68,12 @@ export const HUD: React.FC<HUDProps> = ({
     }
   }, [stats.hp, ghostHp]);
 
-  // Format match timer
-  const minutes = Math.floor(matchTimeSec / 60);
-  const seconds = Math.floor(matchTimeSec % 60);
-  const timerStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  // Format match timer (infinite-time matches report Infinity / NaN)
+  const timerStr = Number.isFinite(matchTimeSec)
+    ? `${Math.floor(matchTimeSec / 60).toString().padStart(2, '0')}:${Math.floor(matchTimeSec % 60).toString().padStart(2, '0')}`
+    : '∞';
+
+  const board = buildScoreboard(scoreboard);
 
   const toggleMute = () => {
     const m = sound.toggleMute();
@@ -315,6 +324,41 @@ export const HUD: React.FC<HUDProps> = ({
         )}
       </div>
 
+      {/* 4b. MATCH STANDINGS OVERLAY (hold TAB / RANKS button) */}
+      {showScoreboard && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/60 backdrop-blur-[2px] pointer-events-none">
+          <div className="w-[min(92vw,44rem)] bg-slate-950/95 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800">
+              <span className="font-black tracking-widest text-amber-400 uppercase">Match Standings</span>
+              <span className="font-mono text-sm text-slate-300">{timerStr} · {stats.kills}/{scoreLimit}</span>
+            </div>
+            <div className="grid grid-cols-[2rem_1fr_4rem_3rem_3rem_4rem] gap-2 px-5 py-2 text-[10px] uppercase tracking-widest text-slate-500 border-b border-slate-800">
+              <span>#</span><span>Player</span><span className="text-right">Score</span><span className="text-right">K</span><span className="text-right">D</span><span className="text-right">K/D</span>
+            </div>
+            {board.rows.map((row, i) => (
+              <div key={row.id} className={`grid grid-cols-[2rem_1fr_4rem_3rem_3rem_4rem] gap-2 px-5 py-2 text-sm ${row.isPlayer ? 'bg-amber-400/15 text-amber-100' : 'text-slate-200'} ${row.isDead ? 'opacity-50' : ''}`}>
+                <span className="font-mono text-slate-500">{i + 1}</span>
+                <span className="font-bold truncate">{row.name}{row.isDead ? ' · DOWN' : ''}</span>
+                <span className="text-right font-mono tabular-nums">{row.score}</span>
+                <span className="text-right font-mono tabular-nums">{row.kills}</span>
+                <span className="text-right font-mono tabular-nums">{row.deaths}</span>
+                <span className="text-right font-mono tabular-nums">{row.deaths === 0 ? row.kills.toFixed(2) : (row.kills / row.deaths).toFixed(2)}</span>
+              </div>
+            ))}
+            {board.pinnedPlayer && (
+              <div className="grid grid-cols-[2rem_1fr_4rem_3rem_3rem_4rem] gap-2 px-5 py-2 text-sm bg-amber-400/15 text-amber-100 border-t border-slate-700">
+                <span className="font-mono text-slate-500">{board.playerRank}</span>
+                <span className="font-bold truncate">You</span>
+                <span className="text-right font-mono tabular-nums">{board.pinnedPlayer.score}</span>
+                <span className="text-right font-mono tabular-nums">{board.pinnedPlayer.kills}</span>
+                <span className="text-right font-mono tabular-nums">{board.pinnedPlayer.deaths}</span>
+                <span className="text-right font-mono tabular-nums">{board.pinnedPlayer.deaths === 0 ? board.pinnedPlayer.kills.toFixed(2) : (board.pinnedPlayer.kills / board.pinnedPlayer.deaths).toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 5. TOP-CENTER UTILITIES & MATCH TIMER */}
       <div className="absolute top-5 left-1/2 -translate-x-1/2 flex items-center gap-4 pointer-events-auto z-40">
         {/* Match Timer & Target Score */}
@@ -348,6 +392,17 @@ export const HUD: React.FC<HUDProps> = ({
             ) : (
               <Volume2 className="w-4 h-4 text-emerald-400 pointer-events-none" />
             )}
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleScoreboard();
+            }}
+            aria-label="Toggle Match Standings"
+            title="Match Standings (hold TAB)"
+            className="px-2.5 py-1.5 rounded-lg text-[10px] font-black tracking-widest text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer pointer-events-auto focus-visible:outline-2 focus-visible:outline-amber-400"
+          >
+            RANKS
           </button>
           <button
             onClick={(e) => {

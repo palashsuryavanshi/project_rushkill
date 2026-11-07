@@ -86,6 +86,7 @@ export default function App() {
   } | null>(null);
   const [fpsSample, setFpsSample] = useState<{ fps: number; frameMs: number; calls: number } | null>(null);
   const [scoreboard, setScoreboard] = useState<ScoreboardEntry[]>([]);
+  const [showScoreboard, setShowScoreboard] = useState(false);
   const [webGlError, setWebGlError] = useState<string | null>(null);
   const [engineRetryKey, setEngineRetryKey] = useState<number>(0);
 
@@ -129,6 +130,7 @@ export default function App() {
         },
         onMatchEnd: (winner) => {
           setMatchOutcome(winner);
+          setShowScoreboard(false);
           setGameState('gameover');
           engine?.exitPointerLock();
         },
@@ -177,10 +179,17 @@ export default function App() {
     };
   }, [engineRetryKey]);
 
-  // Pause / Resume / Mouse Lock Keyboard listener
+  // Pause / Resume / Mouse Lock / Scoreboard Keyboard listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Hold TAB to peek at the standings; never touches pointer lock
+      if (e.code === 'Tab' && gameState === 'playing') {
+        e.preventDefault();
+        if (!e.repeat) setShowScoreboard(true);
+        return;
+      }
       if (e.code === 'Escape' || e.code === 'KeyP') {
+        setShowScoreboard(false);
         if (gameState === 'playing') {
           setGameState('paused');
           engineRef.current?.exitPointerLock();
@@ -199,8 +208,24 @@ export default function App() {
         }
       }
     };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        setShowScoreboard(false);
+      }
+    };
+
+    const handleBlur = () => setShowScoreboard(false);
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
   }, [gameState, isPointerLocked]);
 
   // Actions
@@ -297,6 +322,9 @@ export default function App() {
           matchTimeSec={engineRef.current ? engineRef.current.matchTimeRemaining : 300}
           scoreLimit={engineRef.current ? engineRef.current.scoreLimit : 25}
           minimapData={minimapData}
+          scoreboard={scoreboard}
+          showScoreboard={showScoreboard && gameState === 'playing'}
+          onToggleScoreboard={() => setShowScoreboard((v) => !v)}
           fpsOverlay={
             settings.showFps ? (
               <div className="pointer-events-none font-mono text-xs px-3 py-1.5 rounded-xl bg-slate-950/90 border border-slate-700 text-slate-200 shadow-lg">
@@ -307,6 +335,7 @@ export default function App() {
             ) : null
           }
           onPause={() => {
+            setShowScoreboard(false);
             setGameState('paused');
             engineRef.current?.exitPointerLock();
           }}
