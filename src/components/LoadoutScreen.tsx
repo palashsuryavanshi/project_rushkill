@@ -79,7 +79,7 @@ export const LoadoutScreen: React.FC<LoadoutScreenProps> = ({
               SELECT RUSHKILL ARSENAL
             </h1>
             <p className="text-xs text-slate-400">
-              Equip your primary firearm for the Hijacked yacht match
+              Equip your primary firearm for the Afterglow yacht match
             </p>
           </div>
         </div>

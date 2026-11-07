@@ -41,7 +41,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           </h2>
           <p className="text-xs text-slate-400 mt-1">
             {isVictory
-              ? 'You dominated the Hijacked yacht skirmish!'
+              ? 'You dominated the Afterglow yacht skirmish!'
               : 'Enemy forces overrun the yacht deck. Regroup and redeploy.'}
           </p>
         </div>

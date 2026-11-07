@@ -217,14 +217,19 @@ export const HUD: React.FC<HUDProps> = ({
         {minimapData && (
           <div className="w-36 h-48 bg-slate-950/80 border border-slate-700/80 rounded-xl p-1.5 shadow-xl relative overflow-hidden">
             <div className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest text-center mb-1">
-              HIJACKED RADAR
+              AFTERGLOW RADAR
             </div>
             {/* Superyacht Top-Down Wireframe */}
             <div className="relative w-full h-36 bg-slate-900/60 rounded-lg border border-slate-800 flex items-center justify-center">
               {/* Yacht Hull Silhouette (proportional to 24.4m x 110m footprint) */}
               <div className="absolute w-8 h-32 border border-slate-600 rounded-t-full rounded-b-md bg-slate-800/40" />
-              {/* Central Cabin Box */}
-              <div className="absolute w-6 h-16 border border-amber-500/40 bg-amber-500/10 rounded-sm" />
+              {/* Twin Cabins: bow (~30% height) and stern (~70% height) */}
+              <div className="absolute left-1/2 top-[30%] -translate-x-1/2 -translate-y-1/2 w-6 h-[16%] border border-amber-500/40 bg-amber-500/10 rounded-sm" />
+              <div className="absolute left-1/2 top-[70%] -translate-x-1/2 -translate-y-1/2 w-6 h-[16%] border border-amber-500/40 bg-amber-500/10 rounded-sm" />
+              {/* Port Pool (left of centre) */}
+              <div className="absolute left-[43%] top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-5 rounded-sm border border-cyan-400/50 bg-cyan-400/20" />
+              {/* Starboard Covered Lounge (right of centre) */}
+              <div className="absolute left-[57%] top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-4 rounded-sm border border-amber-100/60 bg-amber-100/20" />
               {/* Helipad 'H' */}
               <div className="absolute top-3 w-6 h-6 rounded-full border border-yellow-400/50 flex items-center justify-center text-[7px] font-bold text-yellow-400">
                 H

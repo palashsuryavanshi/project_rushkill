@@ -72,7 +72,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
                 CUSTOM ARSENAL
               </span>
               <span>•</span>
-              <span className="text-sky-300">HIJACKED-INSPIRED YACHT MAP</span>
+              <span className="text-sky-300">AFTERGLOW YACHT MAP</span>
             </div>
           </div>
         </div>

@@ -32,9 +32,9 @@ interface MapOption {
 const MAP_OPTIONS: MapOption[] = [
   {
     id: 'hijacked',
-    name: 'Hijacked',
-    subtitle: 'Luxury Superyacht Arena',
-    description: 'Multi-deck superyacht with open helipad, 2-story luxury salon, and expansive upper bridge deck.',
+    name: 'Afterglow',
+    subtitle: 'Sunset Charter Arena',
+    description: 'Twin-cabin superyacht split by an open pool deck, with full-length walkways, upper vantage rooms, and a below-deck service lane.',
     isAvailable: true,
     tag: 'ACTIVE MAP',
   },
