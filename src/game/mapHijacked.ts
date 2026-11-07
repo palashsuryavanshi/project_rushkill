@@ -568,9 +568,10 @@ export function buildHijackedMap(): MapData {
     { id: 'bow_ext_top', pos: v(10.2, 4.6, -35), neighbors: ['bow_stair_top'], area: 'upper' },
 
     // Port walkway
-    { id: 'port_north', pos: v(-10.2, 0.1, -26.5), neighbors: ['bow_port', 'bow_port_room', 'port_bridge'], area: 'midship' },
-    { id: 'port_bridge', pos: v(-11.8, 0.1, -15), neighbors: ['port_north', 'port_mid'], area: 'midship' },
-    { id: 'port_mid', pos: v(-10.2, 0.1, -7), neighbors: ['port_bridge', 'pool_edge', 'port_center', 'maint_port_bottom'], area: 'midship' },
+    { id: 'port_north', pos: v(-10.2, 0.1, -26.5), neighbors: ['bow_port', 'bow_port_room', 'port_bridge_north'], area: 'midship' },
+    { id: 'port_bridge_north', pos: v(-11.7, 0.1, -18.4), neighbors: ['port_north', 'port_bridge_south'], area: 'midship' },
+    { id: 'port_bridge_south', pos: v(-11.7, 0.1, -9.6), neighbors: ['port_bridge_north', 'port_mid'], area: 'midship' },
+    { id: 'port_mid', pos: v(-10.2, 0.1, -7), neighbors: ['port_bridge_south', 'pool_edge', 'port_center', 'maint_port_bottom'], area: 'midship' },
     { id: 'port_center', pos: v(-10.2, 0.1, 4), neighbors: ['port_mid', 'port_aft'], area: 'midship' },
     { id: 'port_aft', pos: v(-10.2, 0.1, 15), neighbors: ['port_center', 'port_south'], area: 'midship' },
     { id: 'port_south', pos: v(-10.2, 0.1, 24), neighbors: ['port_aft', 'port_deck', 'stern_port_room'], area: 'midship' },

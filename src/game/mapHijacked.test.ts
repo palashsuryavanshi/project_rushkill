@@ -136,23 +136,44 @@ test('upper stair top edges run over continuous upper floor', () => {
   }
 });
 
-test('the port walkway is bridged across its stairwell without the cabin detour', () => {
+test('the port walkway is bridged on solid floor across its stairwell', () => {
   const byId = new Map(map.waypoints.map((w) => [w.id, w]));
-  const bridge = byId.get('port_bridge');
-  assert.ok(bridge, 'port_bridge is missing');
-  const supported = solid.some(
-    (c) =>
-      bridge!.pos.x > c.min.x && bridge!.pos.x < c.max.x &&
-      bridge!.pos.z > c.min.z && bridge!.pos.z < c.max.z &&
-      Math.abs(c.max.y - bridge!.pos.y) < 0.2
-  );
-  assert.ok(supported, 'port_bridge must sit on deck');
+  const bridgeIds = ['port_bridge_north', 'port_bridge_south'];
+  const checked = new Set<string>();
+
+  for (const id of bridgeIds) {
+    const bridge = byId.get(id);
+    assert.ok(bridge, `${id} is missing`);
+
+    for (const neighborId of bridge!.neighbors) {
+      const other = byId.get(neighborId);
+      assert.ok(other, `${id} -> missing ${neighborId}`);
+      if (Math.abs(bridge!.pos.y - other!.pos.y) >= 0.6) continue;
+      const key = [id, neighborId].sort().join('|');
+      if (checked.has(key)) continue;
+      checked.add(key);
+
+      for (let t = 0.05; t < 1; t += 0.05) {
+        const x = bridge!.pos.x + (other!.pos.x - bridge!.pos.x) * t;
+        const z = bridge!.pos.z + (other!.pos.z - bridge!.pos.z) * t;
+        const supported = solid.some(
+          (c) =>
+            x > c.min.x - 0.05 && x < c.max.x + 0.05 &&
+            z > c.min.z - 0.05 && z < c.max.z + 0.05 &&
+            c.max.y <= bridge!.pos.y + 0.05 &&
+            c.max.y >= bridge!.pos.y - 0.6
+        );
+        assert.ok(supported, `${id} -> ${neighborId} has no floor at t=${t.toFixed(2)}`);
+      }
+    }
+  }
+
   assert.ok(
-    bridge!.neighbors.some((id) => byId.get(id)!.pos.z < -18),
-    'port_bridge needs a neighbour on the north side of the stairwell'
+    byId.get('port_bridge_north')!.neighbors.some((id) => byId.get(id)!.pos.z < -18),
+    'port_bridge_north needs a neighbour north of the stairwell'
   );
   assert.ok(
-    bridge!.neighbors.some((id) => byId.get(id)!.pos.z > -10),
-    'port_bridge needs a neighbour on the south side of the stairwell'
+    byId.get('port_bridge_south')!.neighbors.some((id) => byId.get(id)!.pos.z > -10),
+    'port_bridge_south needs a neighbour south of the stairwell'
   );
 });
