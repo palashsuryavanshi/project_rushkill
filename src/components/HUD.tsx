@@ -326,7 +326,7 @@ export const HUD: React.FC<HUDProps> = ({
 
       {/* 4b. MATCH STANDINGS OVERLAY (hold TAB / RANKS button) */}
       {showScoreboard && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/60 backdrop-blur-[2px] pointer-events-none">
+        <div className="absolute inset-0 z-45 flex items-center justify-center bg-slate-950/60 backdrop-blur-[2px] pointer-events-none">
           <div className="w-[min(92vw,44rem)] bg-slate-950/95 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800">
               <span className="font-black tracking-widest text-amber-400 uppercase">Match Standings</span>
@@ -346,9 +346,9 @@ export const HUD: React.FC<HUDProps> = ({
               </div>
             ))}
             {board.pinnedPlayer && (
-              <div className="grid grid-cols-[2rem_1fr_4rem_3rem_3rem_4rem] gap-2 px-5 py-2 text-sm bg-amber-400/15 text-amber-100 border-t border-slate-700">
+              <div className={`grid grid-cols-[2rem_1fr_4rem_3rem_3rem_4rem] gap-2 px-5 py-2 text-sm bg-amber-400/15 text-amber-100 border-t border-slate-700 ${board.pinnedPlayer.isDead ? 'opacity-50' : ''}`}>
                 <span className="font-mono text-slate-500">{board.playerRank}</span>
-                <span className="font-bold truncate">You</span>
+                <span className="font-bold truncate">You{board.pinnedPlayer.isDead ? ' · DOWN' : ''}</span>
                 <span className="text-right font-mono tabular-nums">{board.pinnedPlayer.score}</span>
                 <span className="text-right font-mono tabular-nums">{board.pinnedPlayer.kills}</span>
                 <span className="text-right font-mono tabular-nums">{board.pinnedPlayer.deaths}</span>

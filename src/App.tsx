@@ -244,12 +244,14 @@ export default function App() {
   }, []);
 
   const handleResume = useCallback(() => {
+    setShowScoreboard(false);
     setGameState('playing');
     engineRef.current?.requestPointerLock(true);
   }, []);
 
   const handleRestart = useCallback(() => {
     if (!engineRef.current) return;
+    setShowScoreboard(false);
     engineRef.current.startMatch(matchConfig);
     setFpsSample(null);
     setGameState('playing');
