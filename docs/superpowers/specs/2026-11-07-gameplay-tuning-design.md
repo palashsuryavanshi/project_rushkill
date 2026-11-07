@@ -48,12 +48,16 @@ Finish the gameplay design that was deferred while the engine was split. The goa
 
 Every solid collider stops a round. Glass panes stay walkthroughable but are registered as bullet blockers too. Player shots compare the nearest bot hit against the nearest blocker and use whichever is closer; a blocked shot shows a tracer and wall spark with no damage, hitmarker, or kill credit. Bot fire checks cover from its muzzle before dealing damage, and bot line-of-sight uses the blocker set, so bots neither see nor shoot through glass.
 
+## Follow-up: scoped sniper hit registration
+
+**Recoil was applied before the shot.** `tryFireWeapon` added the recoil kick to the view angles, and `shootPellet` then built the aim direction from those already-kicked angles. Every round therefore flew along its own recoil arc while the scope stayed on the target: 0.09 rad is about 2.7 m high at 30 m and about 7 m high at 80 m, so scoped sniper shots missed systematically. The shot direction is now resolved from the pre-kick view (`resolveShotAim`), and only the recoil state is advanced afterwards, so the round leaves along the reticle the player saw and the following shot inherits the kick.
+
 ## Bug fixed in the same pass
 
 `GameEngine` defined `onBlur` and removed it during cleanup but never registered it, so held keys and ADS could stick after the window lost focus. The listener is now registered.
 
 ## Verification
 
-- Unit tests cover the shotgun cutoff (including the pellet-count edge case), full-damage long-range AR/SMG shots, sniper falloff per 30 m step, the leg hitbox, unlimited sniper range, scoped sniper spread, the jump apex, single-launch jump repeat, bullet-blocking walls and glass, safe-spawn selection, the respawn progress curve, health regen (delay, rate, cap, dead players), and the respawn loadout.
+- Unit tests cover the shotgun cutoff (including the pellet-count edge case), full-damage long-range AR/SMG shots, sniper falloff per 30 m step, the leg hitbox, unlimited sniper range, scoped sniper spread, pre-kick shot aim (a 100 m scoped shot still hits), the jump apex, single-launch jump repeat, bullet-blocking walls and glass, safe-spawn selection, the respawn progress curve, health regen (delay, rate, cap, dead players), and the respawn loadout.
 - `tsc --noEmit`, the full node test suite, and the Vite production build all pass.
 - Browser smoke test: title screen and match start render with no console errors.

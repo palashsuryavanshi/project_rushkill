@@ -8,6 +8,7 @@ import {
   isBlockedByCover,
   applySpread,
   computeShotSpread,
+  resolveShotAim,
   drainPendingHits,
   type PendingHit,
 } from './combat';
@@ -100,6 +101,16 @@ test('scoped sniper spread ignores the generic stance penalty', () => {
   const sniper = getWeaponById('longbow');
   assert.equal(computeShotSpread(sniper, true, 0, false), sniper.adsSpread);
   assert.equal(computeShotSpread(sniper, true, 12, true), sniper.adsSpread);
+});
+
+test('the shot follows the pre-kick aim and recoil moves the next shot', () => {
+  const sniper = getWeaponById('longbow');
+  const bot = fakeBot(new THREE.Vector3(0, 0, -100));
+  const shot = resolveShotAim(0, 0, 0, 0, sniper.recoilVertical, sniper.recoilHorizontal, () => 0.5);
+
+  const hit = findClosestBotHit(new THREE.Vector3(0, 1.0, 0), shot.dir, [bot], Infinity);
+  assert.ok(hit, 'the round must follow the scope, not its own recoil kick');
+  assert.ok(shot.recoilPitch > 0, 'the kick still moves the next shot');
 });
 
 test('findClosestBoxHit returns the nearest wall along the shot', () => {

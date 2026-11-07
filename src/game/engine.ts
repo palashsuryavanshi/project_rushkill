@@ -5,7 +5,7 @@ import { RUSH_WEAPONS, getWeaponById, calculateShotTotalDamage } from './weapons
 import { buildHijackedMap, MapData, BoxCollider } from './mapHijacked';
 import { buildGunModel, GunRig } from './gunModels';
 import { BotState, BotPersonality, createBot, updateBotAI, triggerBotHit } from './botAI';
-import { findClosestBotHit, findClosestBoxHit, isBlockedByCover, applySpread, computeShotSpread, drainPendingHits, RAY_FAR, type PendingHit } from './combat';
+import { findClosestBotHit, findClosestBoxHit, isBlockedByCover, applySpread, computeShotSpread, resolveShotAim, drainPendingHits, RAY_FAR, type PendingHit } from './combat';
 import { PlayerPhysics, shouldQueueJump } from './playerPhysics';
 import { PointerLockController } from './pointerLock';
 import { EffectsPool } from './effectsPool';
@@ -545,8 +545,19 @@ export class GameEngine {
     // Recoil kick (realistic recoil based on movement and stance)
     const recoilMultiplier = this.physics.isSliding ? 1.3 : 1.0;
     const moveRecoil = this.physics.vel.length() * 0.002; // movement-based recoil scaled to weapon class (≈0.024 at full sprint, not 1.2)
-    this.recoilPitch += (this.activeWeapon.recoilVertical + moveRecoil) * recoilMultiplier;
-    this.recoilYaw += (Math.random() - 0.5) * this.activeWeapon.recoilHorizontal * recoilMultiplier;
+
+    // Aim first, then kick: the round follows the reticle the player saw, and
+    // only the next shot inherits the recoil.
+    const shotAim = resolveShotAim(
+      this.pitch,
+      this.yaw,
+      this.recoilPitch,
+      this.recoilYaw,
+      (this.activeWeapon.recoilVertical + moveRecoil) * recoilMultiplier,
+      this.activeWeapon.recoilHorizontal * recoilMultiplier
+    );
+    this.recoilPitch = shotAim.recoilPitch;
+    this.recoilYaw = shotAim.recoilYaw;
 
     // Audio
     sound.playGunshot(this.activeWeapon.soundType);
@@ -566,15 +577,14 @@ export class GameEngine {
       this.physics.isSliding
     );
     const shotContext = { registered: false, tracerSpawned: false };
-    this.shootPellet(spread, shotContext);
+    this.shootPellet(shotAim.dir, spread, shotContext);
 
     this.notifyStats(true);
   }
 
-  private shootPellet(spreadRad: number, ctx: { registered: boolean; tracerSpawned: boolean }) {
-    // Camera aim direction
-    const aimDir = new THREE.Vector3(0, 0, -1);
-    aimDir.applyEuler(new THREE.Euler(this.pitch + this.recoilPitch, this.yaw + this.recoilYaw, 0, 'YXZ'));
+  private shootPellet(baseAim: THREE.Vector3, spreadRad: number, ctx: { registered: boolean; tracerSpawned: boolean }) {
+    // Direction was resolved from the pre-recoil view angles in tryFireWeapon.
+    const aimDir = baseAim.clone();
 
     // Movement / stance spread is already folded into `spreadRad` by computeShotSpread.
     applySpread(aimDir, spreadRad);

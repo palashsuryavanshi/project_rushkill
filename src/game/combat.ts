@@ -158,6 +158,40 @@ export function findClosestBotHit(
   return closest;
 }
 
+/** Aim direction plus the recoil state the next shot will inherit. */
+export interface ShotAim {
+  dir: THREE.Vector3;
+  recoilPitch: number;
+  recoilYaw: number;
+}
+
+/**
+ * Resolve the direction of a shot from the pre-kick view angles.
+ *
+ * Recoil is applied *after* the direction is built: the round leaves along the
+ * reticle the player saw, and only the following shot inherits the kick. Doing
+ * it the other way made every scoped sniper round fly its own recoil arc
+ * (~5.2 degrees = ~2.7 m high at 30 m, ~7 m at 80 m) while the scope stayed put.
+ */
+export function resolveShotAim(
+  pitch: number,
+  yaw: number,
+  recoilPitch: number,
+  recoilYaw: number,
+  recoilVertical: number,
+  recoilHorizontal: number,
+  rng: () => number = Math.random
+): ShotAim {
+  const dir = new THREE.Vector3(0, 0, -1);
+  dir.applyEuler(new THREE.Euler(pitch + recoilPitch, yaw + recoilYaw, 0, 'YXZ'));
+
+  return {
+    dir,
+    recoilPitch: recoilPitch + recoilVertical,
+    recoilYaw: recoilYaw + (rng() - 0.5) * recoilHorizontal,
+  };
+}
+
 /**
  * Spread cone for one shot. Scoped sniper shots get only the optic's own
  * cone: the generic stance penalty is ~2 m of error at 100 m, which made
