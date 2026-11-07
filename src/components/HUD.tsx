@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { PlayerStats, WeaponDef, KillfeedEntry, StreakBanner, HitmarkerData, FloatingDamage } from '../game/types';
 import { respawnProgress } from '../game/respawn';
 import { formatKillfeed } from '../game/killfeed';
+import { MINIMAP_VIEW, HULL_PATH, MAP_ZONES, MAP_FEATURES, playerRotationDeg } from '../game/minimap';
 import { Volume2, VolumeX, Pause, Zap, Award } from 'lucide-react';
 import { sound } from '../game/audio';
 
@@ -219,59 +220,73 @@ export const HUD: React.FC<HUDProps> = ({
             <div className="text-[9px] font-mono font-bold text-slate-400 uppercase tracking-widest text-center mb-1">
               AFTERGLOW RADAR
             </div>
-            {/* Superyacht Top-Down Wireframe */}
-            <div className="relative w-full h-36 bg-slate-900/60 rounded-lg border border-slate-800 flex items-center justify-center">
-              {/* Yacht Hull Silhouette (proportional to 24.4m x 110m footprint) */}
-              <div className="absolute w-8 h-32 border border-slate-600 rounded-t-full rounded-b-md bg-slate-800/40" />
-              {/* Twin Cabins: bow (~30% height) and stern (~70% height) */}
-              <div className="absolute left-1/2 top-[30%] -translate-x-1/2 -translate-y-1/2 w-6 h-[16%] border border-amber-500/40 bg-amber-500/10 rounded-sm" />
-              <div className="absolute left-1/2 top-[70%] -translate-x-1/2 -translate-y-1/2 w-6 h-[16%] border border-amber-500/40 bg-amber-500/10 rounded-sm" />
-              {/* Port Pool (left of centre) */}
-              <div className="absolute left-[43%] top-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-5 rounded-sm border border-cyan-400/50 bg-cyan-400/20" />
-              {/* Starboard Covered Lounge (right of centre) */}
-              <div className="absolute left-[57%] top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-4 rounded-sm border border-amber-100/60 bg-amber-100/20" />
-              {/* Helipad 'H' */}
-              <div className="absolute top-3 w-6 h-6 rounded-full border border-yellow-400/50 flex items-center justify-center text-[7px] font-bold text-yellow-400">
-                H
-              </div>
-              {/* Jacuzzi Pool */}
-              <div className="absolute bottom-3 w-5 h-5 rounded-sm border border-cyan-400/50 bg-cyan-400/20" />
-
-              {/* Bot Blips */}
-              {minimapData.bots.map((b) => {
-                if (b.isDead) return null;
-                // Map coordinates: X: -13 to +13, Z: -55 to +55 -> Minimap bounds
-                const normX = 50 + (b.x / 26) * 40;
-                const normY = 50 + (b.z / 110) * 80;
-                return (
-                  <div
-                    key={b.id}
-                    className="absolute w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_red] -translate-x-1/2 -translate-y-1/2"
-                    style={{ left: `${normX}%`, top: `${normY}%` }}
+            {/* Superyacht Top-Down Wireframe, authored in map metres */}
+            <svg
+              viewBox={`${MINIMAP_VIEW.x} ${MINIMAP_VIEW.y} ${MINIMAP_VIEW.width} ${MINIMAP_VIEW.height}`}
+              preserveAspectRatio="xMidYMid meet"
+              className="w-full h-36"
+              role="img"
+              aria-label="Afterglow radar"
+            >
+              <path d={HULL_PATH} fill="#1e293b" stroke="#64748b" strokeWidth={0.35} />
+              {MAP_ZONES.map((zone) => (
+                <rect
+                  key={zone.id}
+                  x={zone.x}
+                  y={zone.y}
+                  width={zone.width}
+                  height={zone.height}
+                  fill="none"
+                  stroke="#334155"
+                  strokeWidth={0.25}
+                />
+              ))}
+              {MAP_FEATURES.map((f) =>
+                f.kind === 'circle' ? (
+                  <circle
+                    key={f.id}
+                    cx={f.x}
+                    cy={f.y}
+                    r={f.radius ?? 0}
+                    fill="rgba(34,211,238,0.18)"
+                    stroke="rgba(34,211,238,0.6)"
+                    strokeWidth={0.3}
                   />
-                );
-              })}
-
-              {/* Player Dot + facing indicator (angle was previously ignored) */}
-              <div
-                className="absolute w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_6px_cyan] -translate-x-1/2 -translate-y-1/2 z-10 border border-white/60"
-                style={{
-                  left: `${50 + (minimapData.playerPos.x / 26) * 40}%`,
-                  top: `${50 + (minimapData.playerPos.z / 110) * 80}%`,
-                }}
-              />
-              <svg
-                viewBox="0 0 20 20"
-                className="absolute w-5 h-5 z-10 pointer-events-none"
-                style={{
-                  left: `calc(${50 + (minimapData.playerPos.x / 26) * 40}% - 10px)`,
-                  top: `calc(${50 + (minimapData.playerPos.z / 110) * 80}% - 10px)`,
-                  transform: `rotate(${(minimapData.playerPos.angle * 180) / Math.PI}deg)`,
-                }}
+                ) : (
+                  <rect
+                    key={f.id}
+                    x={f.x}
+                    y={f.y}
+                    width={f.width}
+                    height={f.height}
+                    fill="rgba(253,230,138,0.15)"
+                    stroke="rgba(253,230,138,0.6)"
+                    strokeWidth={0.3}
+                  />
+                )
+              )}
+              {minimapData.bots.map((b) =>
+                b.isDead ? null : (
+                  <circle
+                    key={b.id}
+                    cx={b.x}
+                    cy={b.z}
+                    r={1.5}
+                    fill="#ef4444"
+                    stroke="#7f1d1d"
+                    strokeWidth={0.3}
+                  />
+                )
+              )}
+              <g
+                transform={`translate(${minimapData.playerPos.x} ${minimapData.playerPos.z}) rotate(${playerRotationDeg(
+                  minimapData.playerPos.angle
+                )})`}
               >
-                <path d="M10 1 L14 12 L10 9 L6 12 Z" fill="rgba(165,243,252,0.9)" />
-              </svg>
-            </div>
+                <circle r={1.8} fill="#22d3ee" stroke="#fff" strokeWidth={0.35} />
+                <path d="M 0 -3.2 L 1.8 1.6 L 0 0.6 L -1.8 1.6 Z" fill="#a5f3fc" />
+              </g>
+            </svg>
           </div>
         )}
       </div>
