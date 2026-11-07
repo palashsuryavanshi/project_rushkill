@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   MINIMAP_VIEW,
+  HULL_PATH,
   MAP_ZONES,
   MAP_FEATURES,
   projectToMap,
@@ -72,6 +73,18 @@ test('every feature lies inside the minimap viewBox', () => {
       assert.ok(feature.y + feature.height! <= maxY, `${feature.id} bottom edge`);
     }
   }
+});
+
+test('the hull path contains every viewBox corner', () => {
+  const x = MINIMAP_VIEW.x;
+  const y = MINIMAP_VIEW.y;
+  const right = x + MINIMAP_VIEW.width;
+  const bottom = y + MINIMAP_VIEW.height;
+
+  assert.ok(HULL_PATH.includes(`M ${x} ${y}`), 'bow-port corner');
+  assert.ok(HULL_PATH.includes(`L ${right} ${y}`), 'bow-starboard corner');
+  assert.ok(HULL_PATH.includes(`L ${right} ${bottom}`), 'stern-starboard corner');
+  assert.ok(HULL_PATH.includes(`L ${x} ${bottom}`), 'stern-port corner');
 });
 
 test('player rotation is bow-up: positive yaw turns counter-clockwise', () => {

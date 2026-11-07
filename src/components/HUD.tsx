@@ -74,7 +74,7 @@ export const HUD: React.FC<HUDProps> = ({
   const isSniperScoped = weapon.category === 'Sniper' && stats.isAds;
   const playerMapPos = minimapData
     ? projectToMap(minimapData.playerPos.x, minimapData.playerPos.z)
-    : { x: 0, y: 0 };
+    : null;
 
   return (
     <div className="fixed inset-0 pointer-events-none select-none z-30 overflow-hidden">
@@ -230,13 +230,12 @@ export const HUD: React.FC<HUDProps> = ({
               className="w-full h-36"
               aria-hidden="true"
             >
-              <path
-                d={HULL_PATH}
-                fill="#1e293b"
-                stroke="#64748b"
-                strokeWidth={1}
-                vectorEffect="non-scaling-stroke"
-              />
+              <defs>
+                <clipPath id="radar-hull-clip">
+                  <path d={HULL_PATH} />
+                </clipPath>
+              </defs>
+              <path d={HULL_PATH} fill="#1e293b" />
               {MAP_ZONES.map((zone) => (
                 <rect
                   key={zone.id}
@@ -276,37 +275,46 @@ export const HUD: React.FC<HUDProps> = ({
                   />
                 )
               )}
-              {minimapData.bots.map((b) => {
-                if (b.isDead) return null;
-                const botPos = projectToMap(b.x, b.z);
-                return (
+              <g clipPath="url(#radar-hull-clip)">
+                {minimapData.bots.map((b) => {
+                  if (b.isDead) return null;
+                  const botPos = projectToMap(b.x, b.z);
+                  return (
+                    <circle
+                      key={b.id}
+                      cx={botPos.x}
+                      cy={botPos.y}
+                      r={1.5}
+                      fill="#ef4444"
+                      stroke="#7f1d1d"
+                      strokeWidth={1}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  );
+                })}
+                <g
+                  opacity={stats.respawnTimeRemaining > 0 ? 0.4 : 1}
+                  transform={`translate(${playerMapPos!.x} ${playerMapPos!.y}) rotate(${playerRotationDeg(
+                    minimapData.playerPos.angle
+                  )})`}
+                >
                   <circle
-                    key={b.id}
-                    cx={botPos.x}
-                    cy={botPos.y}
-                    r={1.5}
-                    fill="#ef4444"
-                    stroke="#7f1d1d"
+                    r={1.8}
+                    fill="#22d3ee"
+                    stroke="#fff"
                     strokeWidth={1}
                     vectorEffect="non-scaling-stroke"
                   />
-                );
-              })}
-              <g
-                opacity={stats.respawnTimeRemaining > 0 ? 0.4 : 1}
-                transform={`translate(${playerMapPos.x} ${playerMapPos.y}) rotate(${playerRotationDeg(
-                  minimapData.playerPos.angle
-                )})`}
-              >
-                <circle
-                  r={1.8}
-                  fill="#22d3ee"
-                  stroke="#fff"
-                  strokeWidth={1}
-                  vectorEffect="non-scaling-stroke"
-                />
-                <path d="M 0 -4.2 L 2.2 2.0 L 0 0.8 L -2.2 2.0 Z" fill="#ecfeff" />
+                  <path d="M 0 -4.2 L 2.2 2.0 L 0 0.8 L -2.2 2.0 Z" fill="#ecfeff" />
+                </g>
               </g>
+              <path
+                d={HULL_PATH}
+                fill="none"
+                stroke="#64748b"
+                strokeWidth={1}
+                vectorEffect="non-scaling-stroke"
+              />
             </svg>
           </div>
         )}
