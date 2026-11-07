@@ -1,11 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { pickSafestSpawn, PLAYER_RESPAWN_SECONDS, BOT_RESPAWN_SECONDS } from './respawn';
+import { pickSafestSpawn, PLAYER_RESPAWN_SECONDS, BOT_RESPAWN_SECONDS, respawnProgress } from './respawn';
 
-test('player and bot respawns both take ten seconds', () => {
-  assert.equal(PLAYER_RESPAWN_SECONDS, 10);
+test('player respawn takes three seconds', () => {
+  assert.equal(PLAYER_RESPAWN_SECONDS, 3);
+});
+
+test('bot respawn still takes ten seconds', () => {
   assert.equal(BOT_RESPAWN_SECONDS, 10);
+});
+
+test('respawnProgress goes from full to empty over the player respawn window', () => {
+  assert.equal(respawnProgress(PLAYER_RESPAWN_SECONDS), 1);
+  assert.equal(respawnProgress(PLAYER_RESPAWN_SECONDS / 2), 0.5);
+  assert.equal(respawnProgress(0), 0);
+  assert.equal(respawnProgress(-1), 0);
+  assert.equal(respawnProgress(PLAYER_RESPAWN_SECONDS + 5), 1);
 });
 
 test('pickSafestSpawn chooses the spawn farthest from the nearest threat', () => {

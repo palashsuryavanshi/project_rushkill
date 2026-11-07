@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { PlayerStats, WeaponDef, KillfeedEntry, StreakBanner, HitmarkerData, FloatingDamage } from '../game/types';
+import { respawnProgress } from '../game/respawn';
 import { Volume2, VolumeX, Pause, Zap, Award } from 'lucide-react';
 import { sound } from '../game/audio';
 
@@ -79,10 +80,13 @@ export const HUD: React.FC<HUDProps> = ({
             ELIMINATED
           </div>
           <div className="mt-4 font-mono text-white text-2xl max-sm:text-lg tracking-widest">
-            RESPAWNING IN{' '}
-            <span className="text-amber-400 font-black tabular-nums">
-              {Math.ceil(stats.respawnTimeRemaining)}
-            </span>
+            RESPAWNING
+          </div>
+          <div className="mt-3 w-72 max-sm:w-56 h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+            <div
+              className="h-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.7)] transition-all duration-100 ease-linear"
+              style={{ width: `${respawnProgress(stats.respawnTimeRemaining) * 100}%` }}
+            />
           </div>
           <div className="mt-2 text-slate-400 text-xs font-mono tracking-widest uppercase">
             Stay sharp. The yacht is not done with you.

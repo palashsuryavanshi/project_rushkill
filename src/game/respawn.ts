@@ -8,8 +8,17 @@ import * as THREE from 'three';
  * a respawn into an instant second death.
  */
 
-export const PLAYER_RESPAWN_SECONDS = 10;
+export const PLAYER_RESPAWN_SECONDS = 3;
 export const BOT_RESPAWN_SECONDS = 10;
+
+/**
+ * Remaining share of the player respawn window, clamped to 0..1.
+ * Used by the HUD to draw a draining bar instead of a numeric countdown.
+ */
+export function respawnProgress(remainingSec: number, totalSec = PLAYER_RESPAWN_SECONDS): number {
+  if (totalSec <= 0) return 0;
+  return Math.min(1, Math.max(0, remainingSec / totalSec));
+}
 
 export interface SpawnThreat {
   pos: THREE.Vector3;

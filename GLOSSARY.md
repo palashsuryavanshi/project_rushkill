@@ -139,8 +139,12 @@ The kills required to win a match outright.
 _Avoid_: target score, win score
 
 **Respawn**:
-Returning to play after a kill. The player and every bot wait ten seconds.
+Returning to play after a kill. The player waits three seconds; bots wait ten.
 _Avoid_: revive, rebirth
+
+**Respawn bar**:
+The draining bar shown while the player is dead. It replaces a numeric countdown and empties exactly as the respawn timer reaches zero.
+_Avoid_: countdown, timer
 
 **Title screen**:
 The pre-match presentation with the orbit camera around the yacht.
