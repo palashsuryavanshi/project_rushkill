@@ -20,7 +20,47 @@ export interface MapData {
   bulletBlockers: BoxCollider[];
   spawnPoints: THREE.Vector3[];
   waypoints: WaypointNode[];
+  /** Inverted sunset sphere, reused to bake the PMREM environment. */
+  skyDome: THREE.Mesh;
   update: (time: number, dt: number) => void;
+}
+
+/**
+ * 128 px teak plank texture: warm base, darker seams every 12 px.
+ * Returns null when there is no DOM (node/tsx tests), so the map still builds headless.
+ */
+function makeTeakTexture(): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.fillStyle = '#9c5f36';
+  ctx.fillRect(0, 0, size, size);
+
+  // Faint grain streaks keep the planks from reading as flat fill.
+  ctx.fillStyle = '#a8693c';
+  for (let x = 0; x < size; x += 12) {
+    ctx.fillRect(x + 4, 0, 2, size);
+  }
+
+  // Dark plank seams.
+  ctx.fillStyle = '#7a4426';
+  for (let x = 0; x < size; x += 12) {
+    ctx.fillRect(x, 0, 2, size);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(8, 24);
+  texture.needsUpdate = true;
+  return texture;
 }
 
 export function buildHijackedMap(): MapData {
@@ -87,57 +127,65 @@ export function buildHijackedMap(): MapData {
     return mesh;
   }
 
-  // --- PALETTE MATERIALS ---
-  const matHullWhite = new THREE.MeshStandardMaterial({
-    color: 0xeeeeee,
-    roughness: 0.25,
-    metalness: 0.1,
+  // --- PALETTE MATERIALS: warm sunset charter ---
+  // Saturated colour is reserved for water and hazards; architecture stays low-saturation
+  // so enemy silhouettes read against it.
+  const matHullIvory = new THREE.MeshStandardMaterial({
+    color: 0xf1e4cf,
+    roughness: 0.42,
+    metalness: 0.05,
   });
 
+  // Recesses and toe kicks.
+  const matHullTrim = new THREE.MeshStandardMaterial({
+    color: 0xd9c3a4,
+    roughness: 0.55,
+    metalness: 0.05,
+  });
+
+  const teakTexture = makeTeakTexture();
   const matTeakDeck = new THREE.MeshStandardMaterial({
-    color: 0xb5824c, // warm rich yacht teak wood
-    roughness: 0.7,
+    // The texture already carries the teak base colour; white keeps it from double-darkening.
+    color: teakTexture ? 0xffffff : 0x9c5f36,
+    map: teakTexture,
+    roughness: 0.68,
     metalness: 0.05,
     depthWrite: true,
     depthTest: true,
   });
 
-  const matDarkCarbon = new THREE.MeshStandardMaterial({
-    color: 0x222428,
-    roughness: 0.35,
-    metalness: 0.4,
+  // Stairs, pool curb.
+  const matTeakHighlight = new THREE.MeshStandardMaterial({
+    color: 0xb3784a,
+    roughness: 0.6,
+    metalness: 0.05,
   });
 
-  const matChromeRailing = new THREE.MeshStandardMaterial({
-    color: 0xd8dde2,
-    roughness: 0.15,
+  const matDarkMetal = new THREE.MeshStandardMaterial({
+    color: 0x24262b,
+    roughness: 0.5,
+    metalness: 0.6,
+  });
+
+  const matBrass = new THREE.MeshStandardMaterial({
+    color: 0xb08a4f,
+    roughness: 0.28,
     metalness: 0.9,
   });
 
-  const matGlassTinted = new THREE.MeshStandardMaterial({
-    color: 0x224466,
+  const matGlassTeal = new THREE.MeshStandardMaterial({
+    color: 0x2b6f6a,
     roughness: 0.1,
     metalness: 0.1,
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.42,
     depthWrite: false,
   });
 
-  const matHelipadGray = new THREE.MeshStandardMaterial({
-    color: 0x3e444c,
-    roughness: 0.8,
-    metalness: 0.1,
-  });
-
-  const matHelipadYellow = new THREE.MeshBasicMaterial({
-    color: 0xffcc00,
-    polygonOffset: true,
-    polygonOffsetFactor: -1.5,
-    polygonOffsetUnits: -6.0,
-  });
-
-  const matJacuzziWater = new THREE.MeshStandardMaterial({
-    color: 0x00d2d3,
+  const matPoolWater = new THREE.MeshStandardMaterial({
+    color: 0x37c6b0,
+    emissive: 0x37c6b0,
+    emissiveIntensity: 0.08,
     roughness: 0.1,
     metalness: 0.2,
     transparent: true,
@@ -146,41 +194,50 @@ export function buildHijackedMap(): MapData {
   });
 
   const matTunnelMetal = new THREE.MeshStandardMaterial({
-    color: 0x32353b,
-    roughness: 0.6,
-    metalness: 0.65,
+    color: 0x24262b,
+    roughness: 0.7,
+    metalness: 0.5,
   });
 
-  const matHazardStripe = new THREE.MeshBasicMaterial({
-    color: 0xf39c12,
+  const matHazardAmber = new THREE.MeshBasicMaterial({
+    color: 0xe2a13c,
   });
 
-  const matCrateOlive = new THREE.MeshStandardMaterial({
-    color: 0x475333,
+  // Cover accents only: crate/planter faces.
+  const matCoverAccent = new THREE.MeshStandardMaterial({
+    color: 0xc25a38,
     roughness: 0.8,
-    metalness: 0.2,
+    metalness: 0.1,
   });
 
-  const matCrateNavy = new THREE.MeshStandardMaterial({
-    color: 0x243342,
+  const matNavy = new THREE.MeshStandardMaterial({
+    color: 0x1e3446,
     roughness: 0.75,
-    metalness: 0.2,
+    metalness: 0.15,
+  });
+
+  // Lounge seating.
+  const matCushionCream = new THREE.MeshStandardMaterial({
+    color: 0xe6d6ba,
+    roughness: 0.85,
+    metalness: 0.02,
   });
 
   // Map material uuid -> material instance so bakeMergedStatic can recover the right material per bucket
   const materialByUuid = new Map<string, THREE.Material>([
-    [matHullWhite.uuid, matHullWhite],
+    [matHullIvory.uuid, matHullIvory],
+    [matHullTrim.uuid, matHullTrim],
     [matTeakDeck.uuid, matTeakDeck],
-    [matDarkCarbon.uuid, matDarkCarbon],
-    [matChromeRailing.uuid, matChromeRailing],
-    [matGlassTinted.uuid, matGlassTinted],
-    [matHelipadGray.uuid, matHelipadGray],
-    [matHelipadYellow.uuid, matHelipadYellow],
-    [matJacuzziWater.uuid, matJacuzziWater],
+    [matTeakHighlight.uuid, matTeakHighlight],
+    [matDarkMetal.uuid, matDarkMetal],
+    [matBrass.uuid, matBrass],
+    [matGlassTeal.uuid, matGlassTeal],
+    [matPoolWater.uuid, matPoolWater],
     [matTunnelMetal.uuid, matTunnelMetal],
-    [matHazardStripe.uuid, matHazardStripe],
-    [matCrateOlive.uuid, matCrateOlive],
-    [matCrateNavy.uuid, matCrateNavy],
+    [matHazardAmber.uuid, matHazardAmber],
+    [matCoverAccent.uuid, matCoverAccent],
+    [matNavy.uuid, matNavy],
+    [matCushionCream.uuid, matCushionCream],
   ]);
   // ==========================================
   // 1. MAIN YACHT HULL & DECKS
@@ -195,22 +252,22 @@ export function buildHijackedMap(): MapData {
   } as const;
 
   // Hollow hull shell: thin outer walls + bottom leave the service corridors open.
-  createSolidBox(0.3, 6.0, 108, -12.05, -6.4, 0, matDarkCarbon);
-  createSolidBox(0.3, 6.0, 108, 12.05, -6.4, 0, matDarkCarbon);
-  createSolidBox(24.4, 0.3, 108, 0, -6.7, 0, matDarkCarbon, { noCollider: true });
+  createSolidBox(0.3, 6.0, 108, -12.05, -6.4, 0, matDarkMetal);
+  createSolidBox(0.3, 6.0, 108, 12.05, -6.4, 0, matDarkMetal);
+  createSolidBox(24.4, 0.3, 108, 0, -6.7, 0, matDarkMetal, { noCollider: true });
 
   // Deck undertray (tunnel ceiling), cut around both maintenance stairwells.
-  createSolidBox(21.8, 0.3, 36, 0, -0.7, -36, matDarkCarbon);
-  createSolidBox(19.4, 0.3, 8, 1.2, -0.7, -14, matDarkCarbon);
-  createSolidBox(21.8, 0.3, 20, 0, -0.7, 0, matDarkCarbon);
-  createSolidBox(19.4, 0.3, 8, -1.2, -0.7, 14, matDarkCarbon);
-  createSolidBox(21.8, 0.3, 36, 0, -0.7, 36, matDarkCarbon);
+  createSolidBox(21.8, 0.3, 36, 0, -0.7, -36, matDarkMetal);
+  createSolidBox(19.4, 0.3, 8, 1.2, -0.7, -14, matDarkMetal);
+  createSolidBox(21.8, 0.3, 20, 0, -0.7, 0, matDarkMetal);
+  createSolidBox(19.4, 0.3, 8, -1.2, -0.7, 14, matDarkMetal);
+  createSolidBox(21.8, 0.3, 36, 0, -0.7, 36, matDarkMetal);
 
   // Pointed Bow taper
   const bowNoseGeo = new THREE.ConeGeometry(13, 24, 4);
   bowNoseGeo.rotateX(-Math.PI / 2);
   bowNoseGeo.rotateY(Math.PI / 4);
-  const bowNose = new THREE.Mesh(bowNoseGeo, matHullWhite);
+  const bowNose = new THREE.Mesh(bowNoseGeo, matHullIvory);
   bowNose.position.set(0, -1, -66);
   root.add(bowNose);
 
@@ -229,42 +286,42 @@ export function buildHijackedMap(): MapData {
 
   // Exterior Bulwark / Edge Railings (prevent falling into ocean)
   // Left Railing (Port)
-  createSolidBox(0.4, 1.2, 108, -12.2, 0, 0, matChromeRailing);
+  createSolidBox(0.4, 1.2, 108, -12.2, 0, 0, matBrass);
   // Right Railing (Starboard)
-  createSolidBox(0.4, 1.2, 108, 12.2, 0, 0, matChromeRailing);
+  createSolidBox(0.4, 1.2, 108, 12.2, 0, 0, matBrass);
   // Bow Railing
-  createSolidBox(24, 1.2, 0.4, 0, 0, -54.2, matChromeRailing);
+  createSolidBox(24, 1.2, 0.4, 0, 0, -54.2, matBrass);
   // Stern Railing
-  createSolidBox(24, 1.2, 0.4, 0, 0, 54.2, matChromeRailing);
+  createSolidBox(24, 1.2, 0.4, 0, 0, 54.2, matBrass);
 
   // ==========================================
   // 2. BOW (FORWARD DECK) - HELIPAD & COVER
   // ==========================================
   // Helipad platform (top at Y = 0.15, resting cleanly on deck at Y = 0.0)
-  const helipadBase = createSolidBox(10, 0.15, 10, 0, 0.0, -45, matHelipadGray);
+  const helipadBase = createSolidBox(10, 0.15, 10, 0, 0.0, -45, matHullTrim);
   // Helipad Yellow Circle - raised slightly above helipad surface
   const heliRingGeo = new THREE.RingGeometry(3.6, 4.0, 32);
   heliRingGeo.rotateX(-Math.PI / 2);
-  const heliRing = new THREE.Mesh(heliRingGeo, matHelipadYellow);
+  const heliRing = new THREE.Mesh(heliRingGeo, matHazardAmber);
   heliRing.position.set(0, 0.155, -45);
   heliRing.renderOrder = 1;
   root.add(heliRing);
 
   // Helipad 'H' letter - resting cleanly on top of helipad
-  const hBar1 = createSolidBox(0.5, 0.02, 3.2, -1.3, 0.156, -45, matHelipadYellow, { noCollider: true });
+  const hBar1 = createSolidBox(0.5, 0.02, 3.2, -1.3, 0.156, -45, matHazardAmber, { noCollider: true });
   hBar1.renderOrder = 2;
-  const hBar2 = createSolidBox(0.5, 0.02, 3.2, 1.3, 0.156, -45, matHelipadYellow, { noCollider: true });
+  const hBar2 = createSolidBox(0.5, 0.02, 3.2, 1.3, 0.156, -45, matHazardAmber, { noCollider: true });
   hBar2.renderOrder = 2;
-  const hCross = createSolidBox(2.6, 0.02, 0.5, 0, 0.156, -45, matHelipadYellow, { noCollider: true });
+  const hCross = createSolidBox(2.6, 0.02, 0.5, 0, 0.156, -45, matHazardAmber, { noCollider: true });
   hCross.renderOrder = 2;
 
   // Bow deck cover: one crate stack per side, anchor winch forward, two loungers.
-  createSolidBox(2.2, 1.8, 1.8, -7, 0, -42, matCrateOlive);
-  createSolidBox(1.8, 1.4, 1.8, -7, 1.8, -42, matCrateNavy);
-  createSolidBox(2.4, 1.6, 1.6, 7, 0, -42, matCrateOlive);
-  createSolidBox(2.5, 1.4, 3, 0, 0, -51, matDarkCarbon);
-  createSolidBox(1.2, 0.5, 2.4, -4.5, 0, -49, matHullWhite);
-  createSolidBox(1.2, 0.5, 2.4, 4.5, 0, -49, matHullWhite);
+  createSolidBox(2.2, 1.8, 1.8, -7, 0, -42, matCoverAccent);
+  createSolidBox(1.8, 1.4, 1.8, -7, 1.8, -42, matNavy);
+  createSolidBox(2.4, 1.6, 1.6, 7, 0, -42, matCoverAccent);
+  createSolidBox(2.5, 1.4, 3, 0, 0, -51, matDarkMetal);
+  createSolidBox(1.2, 0.5, 2.4, -4.5, 0, -49, matCushionCream);
+  createSolidBox(1.2, 0.5, 2.4, 4.5, 0, -49, matCushionCream);
 
   // ==========================================
   // 3. MIRRORED BOW / STERN CABINS, STAIRS, UPPER ROOMS
@@ -291,35 +348,35 @@ export function buildHijackedMap(): MapData {
     // --- ground floor shell ---
     // Front and rear walls with a 4 m central doorway and lintel.
     for (const z of [at(-36), at(-18)]) {
-      createSolidBox(6.5, 4.2, 0.4, -5.25, 0, z, matHullWhite);
-      createSolidBox(6.5, 4.2, 0.4, 5.25, 0, z, matHullWhite);
-      createSolidBox(4.0, 1.4, 0.4, 0, 2.8, z, matHullWhite);
+      createSolidBox(6.5, 4.2, 0.4, -5.25, 0, z, matHullIvory);
+      createSolidBox(6.5, 4.2, 0.4, 5.25, 0, z, matHullIvory);
+      createSolidBox(4.0, 1.4, 0.4, 0, 2.8, z, matHullIvory);
     }
 
     // Outboard walls, open at the z -27 / +27 walkway doorway (glass pane sits there).
     for (const x of [-8.5, 8.5]) {
-      createSolidBox(0.4, 4.2, 7, x, 0, at(-32.5), matHullWhite);
-      createSolidBox(0.4, 4.2, 7, x, 0, at(-21.5), matHullWhite);
+      createSolidBox(0.4, 4.2, 7, x, 0, at(-32.5), matHullIvory);
+      createSolidBox(0.4, 4.2, 7, x, 0, at(-21.5), matHullIvory);
     }
 
     // Hall partitions at x +/-3 with a 6 m central opening.
     for (const x of [-3, 3]) {
-      createSolidBox(0.3, 4.2, 6, x, 0, at(-33), matHullWhite);
-      createSolidBox(0.3, 4.2, 6, x, 0, at(-21), matHullWhite);
+      createSolidBox(0.3, 4.2, 6, x, 0, at(-33), matHullIvory);
+      createSolidBox(0.3, 4.2, 6, x, 0, at(-21), matHullIvory);
     }
 
     // Ground cover: bar in the port room, two sofas starboard, hall column.
-    createSolidBox(3.0, 1.1, 1.2, at(-5.5), 0, at(-33), matDarkCarbon);
-    createSolidBox(1.4, 0.8, 2.6, at(6.2), 0, at(-33), matCrateNavy);
-    createSolidBox(1.4, 0.8, 2.6, at(6.2), 0, at(-21), matCrateNavy);
-    createSolidBox(0.8, 2.5, 0.8, at(2.0), 0, at(-34.5), matHullWhite);
+    createSolidBox(3.0, 1.1, 1.2, at(-5.5), 0, at(-33), matDarkMetal);
+    createSolidBox(1.4, 0.8, 2.6, at(6.2), 0, at(-33), matNavy);
+    createSolidBox(1.4, 0.8, 2.6, at(6.2), 0, at(-21), matNavy);
+    createSolidBox(0.8, 2.5, 0.8, at(2.0), 0, at(-34.5), matHullIvory);
 
     // Internal stair up to the upper room. 15 treads at 4.6/15 m rise land flush
     // with the floor strip at the bow/stern face, so the top node is fully supported.
-    addStairRun(at(4.6), at(-23.4), m === 1 ? -1 : 1, 2.4, 15, 4.6 / 15, 0.8, matDarkCarbon);
+    addStairRun(at(4.6), at(-23.4), m === 1 ? -1 : 1, 2.4, 15, 4.6 / 15, 0.8, matDarkMetal);
 
     // External stair on the walkway, landing at upper floor height.
-    addStairRun(at(10.2), at(-47.2), m === 1 ? 1 : -1, 2.0, 14, 0.33, 0.8, matChromeRailing);
+    addStairRun(at(10.2), at(-47.2), m === 1 ? 1 : -1, 2.0, 14, 0.33, 0.8, matBrass);
     createSolidBox(4.0, 0.4, 3.0, at(10.2), 4.2, at(-34.9), matTeakDeck);
 
     // Upper floor slab around the internal stairwell (x 3.4..5.8, z -35..-23.4).
@@ -329,16 +386,16 @@ export function buildHijackedMap(): MapData {
     createSolidBox(2.4, 0.4, 5.4, at(4.6), 4.2, at(-20.7), matTeakDeck);
 
     // Upper room: solid outboard walls, open firing faces with waist-high rails.
-    createSolidBox(0.3, 3.6, 16, at(-7), 4.6, at(-27), matHullWhite);
-    createSolidBox(0.3, 3.6, 14.4, at(7), 4.6, at(-26.2), matHullWhite);
-    createSolidBox(10.4, 1.0, 0.15, at(-1.8), 4.6, at(-35), matChromeRailing);
-    createSolidBox(1.2, 1.0, 0.15, at(6.4), 4.6, at(-35), matChromeRailing);
-    createSolidBox(14.0, 1.0, 0.15, 0, 4.6, at(-19), matChromeRailing);
+    createSolidBox(0.3, 3.6, 16, at(-7), 4.6, at(-27), matHullIvory);
+    createSolidBox(0.3, 3.6, 14.4, at(7), 4.6, at(-26.2), matHullIvory);
+    createSolidBox(10.4, 1.0, 0.15, at(-1.8), 4.6, at(-35), matBrass);
+    createSolidBox(1.2, 1.0, 0.15, at(6.4), 4.6, at(-35), matBrass);
+    createSolidBox(14.0, 1.0, 0.15, 0, 4.6, at(-19), matBrass);
 
     // Ceiling and upper cover.
-    createSolidBox(14.6, 0.4, 16, 0, 8.2, at(-27), matHullWhite);
-    createSolidBox(1.6, 1.0, 1.2, at(4), 4.6, at(-22), matDarkCarbon);
-    createSolidBox(1.6, 0.7, 1.0, at(-4), 4.6, at(-22), matHullWhite);
+    createSolidBox(14.6, 0.4, 16, 0, 8.2, at(-27), matHullIvory);
+    createSolidBox(1.6, 1.0, 1.2, at(4), 4.6, at(-22), matDarkMetal);
+    createSolidBox(1.6, 0.7, 1.0, at(-4), 4.6, at(-22), matHullIvory);
   }
 
   buildCabin(1);
@@ -347,7 +404,7 @@ export function buildHijackedMap(): MapData {
   // Four ground-level teal panes beside the walkway doorways (walk-through, bullet-proof).
   for (const x of [-8.5, 8.5]) {
     for (const z of [-27, 27]) {
-      createSolidBox(0.4, 3.8, 4, x, 0.2, z, matGlassTinted, {
+      createSolidBox(0.4, 3.8, 4, x, 0.2, z, matGlassTeal, {
         renderOrder: 1,
         noCollider: true,
         blocksBullets: true,
@@ -358,42 +415,42 @@ export function buildHijackedMap(): MapData {
   // 4. CENTRAL DECK - POOL, LOUNGE, PLANTER, STAIRWELLS
   // ==========================================
   // Pool basin with teak curb (cover) and walk-through water.
-  createSolidBox(0.4, 0.4, 14, -8.0, 0, 0, matTeakDeck);
-  createSolidBox(0.4, 0.4, 14, -3.0, 0, 0, matTeakDeck);
-  createSolidBox(4.6, 0.4, 0.4, -5.5, 0, -6.8, matTeakDeck);
-  createSolidBox(4.6, 0.4, 0.4, -5.5, 0, 6.8, matTeakDeck);
-  createSolidBox(4.6, 0.05, 13.2, -5.5, 0.06, 0, matJacuzziWater, { noCollider: true, renderOrder: 1 });
+  createSolidBox(0.4, 0.4, 14, -8.0, 0, 0, matTeakHighlight);
+  createSolidBox(0.4, 0.4, 14, -3.0, 0, 0, matTeakHighlight);
+  createSolidBox(4.6, 0.4, 0.4, -5.5, 0, -6.8, matTeakHighlight);
+  createSolidBox(4.6, 0.4, 0.4, -5.5, 0, 6.8, matTeakHighlight);
+  createSolidBox(4.6, 0.05, 13.2, -5.5, 0.06, 0, matPoolWater, { noCollider: true, renderOrder: 1 });
 
   // Covered lounge: solid roof on four columns, sofas and table inside.
-  createSolidBox(5.4, 0.2, 14, 5.5, 3.2, 0, matHullWhite);
+  createSolidBox(5.4, 0.2, 14, 5.5, 3.2, 0, matHullIvory);
   for (const x of [3.2, 7.8]) {
     for (const z of [-6.5, 6.5]) {
-      createSolidBox(0.25, 3.2, 0.25, x, 0, z, matChromeRailing);
+      createSolidBox(0.25, 3.2, 0.25, x, 0, z, matBrass);
     }
   }
-  createSolidBox(1.4, 0.8, 2.6, 4.0, 0, -4.5, matCrateNavy);
-  createSolidBox(1.4, 0.8, 2.6, 4.0, 0, 4.5, matCrateNavy);
-  createSolidBox(1.2, 0.5, 1.2, 6.2, 0, 0, matDarkCarbon);
-  createSolidBox(0.5, 1.0, 1.0, 7.9, 0, 0, matTeakDeck);
+  createSolidBox(1.4, 0.8, 2.6, 4.0, 0, -4.5, matCushionCream);
+  createSolidBox(1.4, 0.8, 2.6, 4.0, 0, 4.5, matCushionCream);
+  createSolidBox(1.2, 0.5, 1.2, 6.2, 0, 0, matDarkMetal);
+  createSolidBox(0.5, 1.0, 1.0, 7.9, 0, 0, matTeakHighlight);
 
   // Centre planter / sightline breaker.
-  createSolidBox(2.8, 1.2, 6, 0, 0, 0, matCrateOlive);
+  createSolidBox(2.8, 1.2, 6, 0, 0, 0, matCoverAccent);
   const palmGeo = new THREE.CylinderGeometry(0.12, 0.2, 3.2, 8);
-  const palm = new THREE.Mesh(palmGeo, matChromeRailing);
+  const palm = new THREE.Mesh(palmGeo, matBrass);
   palm.position.set(0, 2.8, 0);
   root.add(palm);
 
   // Centre-lane benches.
-  createSolidBox(2.0, 0.7, 1.0, 0, 0, -11, matCrateNavy);
-  createSolidBox(2.0, 0.7, 1.0, 0, 0, 11, matCrateNavy);
+  createSolidBox(2.0, 0.7, 1.0, 0, 0, -11, matNavy);
+  createSolidBox(2.0, 0.7, 1.0, 0, 0, 11, matNavy);
 
   // Maintenance stairwells (10 treads descending 0.34 m each) and brass rails.
   for (let i = 0; i < 10; i++) {
-    createSolidBox(2.4, 0.34, 0.8, 10.2, -(i + 1) * 0.34, 10 + i * 0.8, matDarkCarbon);
-    createSolidBox(2.4, 0.34, 0.8, -10.2, -(i + 1) * 0.34, -10 - i * 0.8, matDarkCarbon);
+    createSolidBox(2.4, 0.34, 0.8, 10.2, -(i + 1) * 0.34, 10 + i * 0.8, matDarkMetal);
+    createSolidBox(2.4, 0.34, 0.8, -10.2, -(i + 1) * 0.34, -10 - i * 0.8, matDarkMetal);
   }
-  createSolidBox(0.15, 1.0, 8, 8.55, 0, 14, matChromeRailing);
-  createSolidBox(0.15, 1.0, 8, -8.55, 0, -14, matChromeRailing);
+  createSolidBox(0.15, 1.0, 8, 8.55, 0, 14, matBrass);
+  createSolidBox(0.15, 1.0, 8, -8.55, 0, -14, matBrass);
   // Narrow outboard service ledge keeps the port walkway a continuous bot lane
   // across the maintenance stairwell cut (z -18..-10).
   createSolidBox(1.0, 0.4, 8, -11.7, -0.4, -14, matTeakDeck);
@@ -402,10 +459,10 @@ export function buildHijackedMap(): MapData {
   // 5. BELOW-DECK MAINTENANCE TUNNEL
   // ==========================================
   createSolidBox(5.2, 0.3, 72, 0, -3.4, 0, matTunnelMetal);
-  createSolidBox(0.3, 3.4, 48, 2.75, -3.4, -12, matDarkCarbon);
-  createSolidBox(0.3, 3.4, 20, 2.75, -3.4, 26, matDarkCarbon);
-  createSolidBox(0.3, 3.4, 20, -2.75, -3.4, -26, matDarkCarbon);
-  createSolidBox(0.3, 3.4, 48, -2.75, -3.4, 12, matDarkCarbon);
+  createSolidBox(0.3, 3.4, 48, 2.75, -3.4, -12, matDarkMetal);
+  createSolidBox(0.3, 3.4, 20, 2.75, -3.4, 26, matDarkMetal);
+  createSolidBox(0.3, 3.4, 20, -2.75, -3.4, -26, matDarkMetal);
+  createSolidBox(0.3, 3.4, 48, -2.75, -3.4, 12, matDarkMetal);
 
   // Side branches and stair landings.
   createSolidBox(7.6, 0.3, 4, 6.4, -3.4, 14, matTunnelMetal);
@@ -421,28 +478,28 @@ export function buildHijackedMap(): MapData {
   }
 
   // Crate clusters against the tunnel walls (clear of the centre path).
-  createSolidBox(1.2, 1.0, 1.2, 1.8, -3.4, -6, matCrateOlive);
-  createSolidBox(1.2, 1.0, 1.2, 1.8, -3.4, 6, matCrateNavy);
-  createSolidBox(1.2, 1.0, 1.2, -1.8, -3.4, -6, matCrateNavy);
-  createSolidBox(1.2, 1.0, 1.2, -1.8, -3.4, 6, matCrateOlive);
+  createSolidBox(1.2, 1.0, 1.2, 1.8, -3.4, -6, matCoverAccent);
+  createSolidBox(1.2, 1.0, 1.2, 1.8, -3.4, 6, matNavy);
+  createSolidBox(1.2, 1.0, 1.2, -1.8, -3.4, -6, matNavy);
+  createSolidBox(1.2, 1.0, 1.2, -1.8, -3.4, 6, matCoverAccent);
 
   // ==========================================
   // 6. STERN DECK - JACUZZI & COVER
   // ==========================================
   createSolidBox(6.5, 1.2, 6.5, 0, 0, 50, matTeakDeck);
-  const jacuzziWater = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.2, 5.2), matJacuzziWater);
+  const jacuzziWater = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.2, 5.2), matPoolWater);
   jacuzziWater.position.set(0, 1.05, 50);
   jacuzziWater.renderOrder = 1;
   root.add(jacuzziWater);
 
-  createSolidBox(2.2, 1.8, 1.8, -7.5, 0, 50, matCrateNavy);
-  createSolidBox(2.2, 1.8, 1.8, 7.5, 0, 50, matCrateOlive);
-  createSolidBox(1.2, 0.5, 2.4, -6.5, 0, 40, matHullWhite);
-  createSolidBox(1.2, 0.5, 2.4, 6.5, 0, 40, matHullWhite);
+  createSolidBox(2.2, 1.8, 1.8, -7.5, 0, 50, matNavy);
+  createSolidBox(2.2, 1.8, 1.8, 7.5, 0, 50, matCoverAccent);
+  createSolidBox(1.2, 0.5, 2.4, -6.5, 0, 40, matCushionCream);
+  createSolidBox(1.2, 0.5, 2.4, 6.5, 0, 40, matCushionCream);
 
-  const flagPole = createSolidBox(0.1, 4.5, 0.1, 0, 1.2, 53.5, matChromeRailing, { noCollider: true });
+  const flagPole = createSolidBox(0.1, 4.5, 0.1, 0, 1.2, 53.5, matBrass, { noCollider: true });
   const flagMat = new THREE.MeshStandardMaterial({
-    color: 0x3b82f6,
+    color: 0xc25a38,
     side: THREE.DoubleSide,
     roughness: 0.6,
   });
@@ -452,23 +509,23 @@ export function buildHijackedMap(): MapData {
   root.add(flag);
 
   // Radar mast on the planter and satellite domes on the cabin roofs.
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 4.5, 8), matChromeRailing);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 4.5, 8), matBrass);
   mast.position.set(0, 3.4, 0);
   root.add(mast);
-  const radarBar = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.4, 0.3), matDarkCarbon);
+  const radarBar = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.4, 0.3), matDarkMetal);
   radarBar.position.set(0, 5.4, 0);
   root.add(radarBar);
   const domeGeo = new THREE.SphereGeometry(1.2, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-  const dome1 = new THREE.Mesh(domeGeo, matHullWhite);
+  const dome1 = new THREE.Mesh(domeGeo, matHullIvory);
   dome1.position.set(-3.5, 8.6, -27);
   root.add(dome1);
-  const dome2 = new THREE.Mesh(domeGeo, matHullWhite);
+  const dome2 = new THREE.Mesh(domeGeo, matHullIvory);
   dome2.position.set(3.5, 8.6, 27);
   root.add(dome2);
 
   // Warm practicals: four tunnel, two cabin, one lounge = 7 point lights.
   for (const z of [-24, -8, 8, 24]) {
-    createSolidBox(0.6, 0.15, 0.4, 0, -1.25, z, matHazardStripe, { noCollider: true });
+    createSolidBox(0.6, 0.15, 0.4, 0, -1.25, z, matHazardAmber, { noCollider: true });
     const light = new THREE.PointLight(0xffa53a, 0.7, 9);
     light.position.set(0, -1.2, z);
     root.add(light);
@@ -484,16 +541,55 @@ export function buildHijackedMap(): MapData {
 
 
   // ==========================================
-  // 7. OCEAN WATER & HORIZON ISLANDS
+  // 7. SUNSET SKY DOME & SUN DISC
+  // ==========================================
+  const skyGeo = new THREE.SphereGeometry(400, 32, 16);
+  const skyPositions = skyGeo.attributes.position;
+  const skyColors = new Float32Array(skyPositions.count * 3);
+  const horizonColor = new THREE.Color(0xffca9c);
+  const zenithColor = new THREE.Color(0x3f6699);
+  const blendColor = new THREE.Color();
+  for (let i = 0; i < skyPositions.count; i++) {
+    // Vertex colours key off the normalised sphere height (-1..1): warm horizon band
+    // hugging the waterline, cool blue taking over towards the zenith.
+    const t = THREE.MathUtils.clamp((skyPositions.getY(i) / 400 - 0.05) / 0.65, 0, 1);
+    blendColor.copy(horizonColor).lerp(zenithColor, t);
+    skyColors[i * 3] = blendColor.r;
+    skyColors[i * 3 + 1] = blendColor.g;
+    skyColors[i * 3 + 2] = blendColor.b;
+  }
+  skyGeo.setAttribute('color', new THREE.BufferAttribute(skyColors, 3));
+  const skyMat = new THREE.MeshBasicMaterial({
+    side: THREE.BackSide,
+    vertexColors: true,
+    fog: false,
+    depthWrite: false,
+  });
+  const skyDome = new THREE.Mesh(skyGeo, skyMat);
+  skyDome.renderOrder = -2;
+  root.add(skyDome);
+
+  // Low sun disc near the stern-starboard horizon, facing the yacht.
+  const sunDisc = new THREE.Mesh(
+    new THREE.CircleGeometry(14, 32),
+    new THREE.MeshBasicMaterial({ color: 0xfff1c9, fog: false, depthWrite: false })
+  );
+  sunDisc.position.set(220, 26, 300);
+  sunDisc.lookAt(0, 0, 0);
+  sunDisc.renderOrder = -1;
+  root.add(sunDisc);
+
+  // ==========================================
+  // 8. OCEAN WATER & HORIZON ISLANDS
   // ==========================================
   const waterPlaneGeo = new THREE.PlaneGeometry(500, 500, 32, 32);
   waterPlaneGeo.rotateX(-Math.PI / 2);
   const waterPlaneMat = new THREE.MeshStandardMaterial({
-    color: 0x005577,
-    roughness: 0.15,
-    metalness: 0.8,
+    color: 0x0a4b52,
+    roughness: 0.1,
+    metalness: 0.6,
     transparent: true,
-    opacity: 0.92,
+    opacity: 0.94,
     depthWrite: false,
   });
   const ocean = new THREE.Mesh(waterPlaneGeo, waterPlaneMat);
@@ -505,9 +601,9 @@ export function buildHijackedMap(): MapData {
   const wakeGeo = new THREE.PlaneGeometry(36, 140, 16, 16);
   wakeGeo.rotateX(-Math.PI / 2);
   const wakeMat = new THREE.MeshBasicMaterial({
-    color: 0x88d5e5,
+    color: 0xd9e8e0,
     transparent: true,
-    opacity: 0.35,
+    opacity: 0.2,
     depthWrite: false,
   });
   const wake = new THREE.Mesh(wakeGeo, wakeMat);
@@ -515,11 +611,16 @@ export function buildHijackedMap(): MapData {
   wake.renderOrder = -1;
   root.add(wake);
 
-  // Distant tropical horizon islands
+  // Distant horizon islands: desaturated green cones with a thin sand shelf at the waterline.
   const islandMat = new THREE.MeshStandardMaterial({
-    color: 0x2e5c38,
+    color: 0x3c5b48,
     roughness: 0.9,
     metalness: 0.1,
+  });
+  const islandSandMat = new THREE.MeshStandardMaterial({
+    color: 0xd9c08a,
+    roughness: 0.95,
+    metalness: 0.02,
   });
 
   const islandPositions = [
@@ -534,10 +635,16 @@ export function buildHijackedMap(): MapData {
     const islMesh = new THREE.Mesh(islGeo, islandMat);
     islMesh.position.set(isl.x, isl.h / 2 - 5, isl.z);
     root.add(islMesh);
+
+    // Sand ring pokes just above the ocean surface (y -3.8) around the cone base.
+    const sandGeo = new THREE.CylinderGeometry(isl.r * 1.06, isl.r * 1.12, 0.7, 32);
+    const sandRing = new THREE.Mesh(sandGeo, islandSandMat);
+    sandRing.position.set(isl.x, -4.1, isl.z);
+    root.add(sandRing);
   });
 
   // ==========================================
-  // 8. SPAWN POINTS & WAYPOINT GRAPH
+  // 9. SPAWN POINTS & WAYPOINT GRAPH
   // ==========================================
   const spawnPoints: THREE.Vector3[] = [
     new THREE.Vector3(0, 0.1, -46),
@@ -699,6 +806,7 @@ export function buildHijackedMap(): MapData {
     bulletBlockers,
     spawnPoints,
     waypoints,
+    skyDome,
     update,
   };
 }
