@@ -353,10 +353,13 @@ export function buildHijackedMap(): MapData {
       createSolidBox(4.0, 1.4, 0.4, 0, 2.8, z, matHullIvory);
     }
 
-    // Outboard walls, open at the z -27 / +27 walkway doorway (glass pane sits there).
+    // Outboard walls: a 2 m walkway doorway centred at z ∓27 sits beside a 4 m
+    // glazed window at z ∓33..∓29. Segments: 3 m (∓36..∓33), 1 m (∓29..∓28),
+    // 8 m (∓26..∓18).
     for (const x of [-8.5, 8.5]) {
-      createSolidBox(0.4, 4.2, 7, x, 0, at(-32.5), matHullIvory);
-      createSolidBox(0.4, 4.2, 7, x, 0, at(-21.5), matHullIvory);
+      createSolidBox(0.4, 4.2, 3, x, 0, at(-34.5), matHullIvory);
+      createSolidBox(0.4, 4.2, 1, x, 0, at(-28.5), matHullIvory);
+      createSolidBox(0.4, 4.2, 8, x, 0, at(-22), matHullIvory);
     }
 
     // Hall partitions at x +/-3 with a 6 m central opening.
@@ -382,7 +385,6 @@ export function buildHijackedMap(): MapData {
     // Upper floor slab around the internal stairwell (x 3.4..5.8, z -35..-23.4).
     createSolidBox(11.9, 0.4, 18, at(-2.55), 4.2, at(-27), matTeakDeck);
     createSolidBox(2.4, 0.4, 18, at(7.0), 4.2, at(-27), matTeakDeck);
-    createSolidBox(2.4, 0.4, 1.0, at(4.6), 4.2, at(-35.5), matTeakDeck);
     createSolidBox(2.4, 0.4, 5.4, at(4.6), 4.2, at(-20.7), matTeakDeck);
 
     // Upper room: solid outboard walls, open firing faces with waist-high rails.
@@ -390,6 +392,9 @@ export function buildHijackedMap(): MapData {
     createSolidBox(0.3, 3.6, 14.4, at(7), 4.6, at(-26.2), matHullIvory);
     createSolidBox(10.4, 1.0, 0.15, at(-1.8), 4.6, at(-35), matBrass);
     createSolidBox(1.2, 1.0, 0.15, at(6.4), 4.6, at(-35), matBrass);
+    // Rail across the internal-stair mouth so the bow/stern firing face is
+    // continuously railed from x -7..7; the stair top exits sideways to the landing.
+    createSolidBox(2.4, 1.0, 0.15, at(4.6), 4.6, at(-35), matBrass);
     createSolidBox(14.0, 1.0, 0.15, 0, 4.6, at(-19), matBrass);
 
     // Ceiling and upper cover.
@@ -403,7 +408,7 @@ export function buildHijackedMap(): MapData {
 
   // Four ground-level teal panes beside the walkway doorways (walk-through, bullet-proof).
   for (const x of [-8.5, 8.5]) {
-    for (const z of [-27, 27]) {
+    for (const z of [-31, 31]) {
       createSolidBox(0.4, 3.8, 4, x, 0.2, z, matGlassTeal, {
         renderOrder: 1,
         noCollider: true,
@@ -451,9 +456,38 @@ export function buildHijackedMap(): MapData {
   }
   createSolidBox(0.15, 1.0, 8, 8.55, 0, 14, matBrass);
   createSolidBox(0.15, 1.0, 8, -8.55, 0, -14, matBrass);
-  // Narrow outboard service ledge keeps the port walkway a continuous bot lane
-  // across the maintenance stairwell cut (z -18..-10).
+  // Narrow outboard service ledges keep both walkways continuous bot lanes
+  // across their maintenance stairwell cuts (port z -18..-10, starboard z 10..18).
   createSolidBox(1.0, 0.4, 8, -11.7, -0.4, -14, matTeakDeck);
+  createSolidBox(1.0, 0.4, 8, 11.7, -0.4, 14, matTeakDeck);
+
+  // Staggered walkway cover: one crate cluster per side, outboard-rail side,
+  // clear of both stairwells and every waypoint lane (inner face x ±10.8 vs
+  // the ±10.2 walkway lane).
+  createSolidBox(1.4, 1.0, 1.4, -11.5, 0, -5, matCoverAccent);
+  createSolidBox(0.8, 0.6, 0.8, -11.5, 1.0, -5, matNavy);
+  createSolidBox(1.4, 1.0, 1.4, 11.5, 0, 23.5, matNavy);
+  createSolidBox(0.8, 0.6, 0.8, 11.5, 1.0, 23.5, matCoverAccent);
+
+  // Decorative life-ring stations on both walkway rails at z 0 (no collider).
+  const lifeRingGeo = new THREE.TorusGeometry(0.35, 0.06, 8, 20);
+  for (const x of [-11.9, 11.9]) {
+    const ring = new THREE.Mesh(lifeRingGeo, matCoverAccent);
+    ring.position.set(x, 1.1, 0);
+    ring.rotation.y = Math.PI / 2;
+    ring.castShadow = false;
+    ring.receiveShadow = false;
+    root.add(ring);
+  }
+
+  // Purely visual steel-and-glass viewing shelf hanging outside the port rail
+  // (x -14.5..-12.2, z -4..4, y -0.6). No collider, no bullet blocker.
+  createSolidBox(2.3, 0.1, 8, -13.35, -0.6, 0, matGlassTeal, { noCollider: true, renderOrder: 1 });
+  createSolidBox(0.1, 0.12, 8, -14.45, -0.65, 0, matBrass, { noCollider: true });
+  createSolidBox(0.1, 0.12, 8, -12.25, -0.65, 0, matBrass, { noCollider: true });
+  for (const z of [-3.9, 3.9]) {
+    createSolidBox(2.3, 0.12, 0.1, -13.35, -0.65, z, matBrass, { noCollider: true });
+  }
 
   // ==========================================
   // 5. BELOW-DECK MAINTENANCE TUNNEL
@@ -652,9 +686,9 @@ export function buildHijackedMap(): MapData {
   const spawnPoints: THREE.Vector3[] = [
     new THREE.Vector3(0, 0.1, -46),
     new THREE.Vector3(-9.5, 0.1, -42),
-    new THREE.Vector3(9.5, 0.1, -42),
+    new THREE.Vector3(9.5, 0.1, -34.5),
     new THREE.Vector3(0, 0.1, 46),
-    new THREE.Vector3(-9.5, 0.1, 42),
+    new THREE.Vector3(-9.5, 0.1, 34.5),
     new THREE.Vector3(9.5, 0.1, 42),
     new THREE.Vector3(0, 4.6, -28),
     new THREE.Vector3(0, 4.6, 28),
@@ -684,7 +718,7 @@ export function buildHijackedMap(): MapData {
     { id: 'port_mid', pos: v(-10.2, 0.1, -7), neighbors: ['port_bridge_south', 'pool_edge', 'port_center', 'maint_port_bottom'], area: 'midship' },
     { id: 'port_center', pos: v(-10.2, 0.1, 4), neighbors: ['port_mid', 'port_aft'], area: 'midship' },
     { id: 'port_aft', pos: v(-10.2, 0.1, 15), neighbors: ['port_center', 'port_south'], area: 'midship' },
-    { id: 'port_south', pos: v(-10.2, 0.1, 24), neighbors: ['port_aft', 'port_deck', 'stern_port_room'], area: 'midship' },
+    { id: 'port_south', pos: v(-10.2, 0.1, 26.5), neighbors: ['port_aft', 'port_deck', 'stern_port_room'], area: 'midship' },
     { id: 'port_deck', pos: v(-10.2, 0.1, 32), neighbors: ['port_south', 'port_stern'], area: 'stern' },
 
     { id: 'port_stern', pos: v(-11.7, 0.1, 38), neighbors: ['port_deck', 'port_aftdeck'], area: 'stern' },
@@ -693,8 +727,10 @@ export function buildHijackedMap(): MapData {
     { id: 'star_north', pos: v(10.2, 0.1, -27), neighbors: ['bow_star', 'bow_star_room', 'star_center'], area: 'midship' },
     { id: 'star_center', pos: v(10.2, 0.1, -16), neighbors: ['star_north', 'star_mid'], area: 'midship' },
     { id: 'star_mid', pos: v(10.2, 0.1, -5), neighbors: ['star_center', 'lounge', 'star_south'], area: 'midship' },
-    { id: 'star_south', pos: v(10.2, 0.1, 7), neighbors: ['star_mid', 'center_south', 'maint_star_bottom'], area: 'midship' },
-    { id: 'star_aft', pos: v(10.2, 0.1, 22), neighbors: ['star_tail'], area: 'midship' },
+    { id: 'star_south', pos: v(10.2, 0.1, 7), neighbors: ['star_mid', 'center_south', 'maint_star_bottom', 'star_bridge_south'], area: 'midship' },
+    { id: 'star_bridge_south', pos: v(11.7, 0.1, 9.6), neighbors: ['star_south', 'star_bridge_north'], area: 'midship' },
+    { id: 'star_bridge_north', pos: v(11.7, 0.1, 18.4), neighbors: ['star_bridge_south', 'star_aft'], area: 'midship' },
+    { id: 'star_aft', pos: v(10.2, 0.1, 22), neighbors: ['star_tail', 'star_bridge_north'], area: 'midship' },
     { id: 'star_tail', pos: v(10.2, 0.1, 27), neighbors: ['star_aft', 'stern_star_room', 'star_deck'], area: 'midship' },
     { id: 'star_deck', pos: v(10.2, 0.1, 38), neighbors: ['star_tail', 'stern_deck', 'stern_jacuzzi'], area: 'stern' },
 

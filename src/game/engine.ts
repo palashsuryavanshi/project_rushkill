@@ -281,7 +281,7 @@ export class GameEngine {
     sunLight.shadow.camera.top = 85;
     sunLight.shadow.camera.bottom = -85;
     sunLight.shadow.camera.near = 0.5;
-    sunLight.shadow.camera.far = 200;
+    sunLight.shadow.camera.far = 220;
     this.scene.add(sunLight);
 
     const hemiLight = new THREE.HemisphereLight(0xa9c9e8, 0x5d4335, 0.65);
