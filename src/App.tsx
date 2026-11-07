@@ -20,6 +20,9 @@ import { LoadoutScreen } from './components/LoadoutScreen';
 import { HUD } from './components/HUD';
 import { PauseModal } from './components/PauseModal';
 import { GameOverModal } from './components/GameOverModal';
+import { MultiplayerUI } from './components/MultiplayerUI';
+import { MultiplayerEngine } from './game/MultiplayerEngine';
+import { NetworkManager } from './game/NetworkManager';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 const DEFAULT_SETTINGS: GameSettings = {
@@ -89,6 +92,14 @@ export default function App() {
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [webGlError, setWebGlError] = useState<string | null>(null);
   const [engineRetryKey, setEngineRetryKey] = useState<number>(0);
+  
+  // Multiplayer state
+  const [multiplayerEngine, setMultiplayerEngine] = useState<MultiplayerEngine | null>(null);
+  const [networkManager, setNetworkManager] = useState<NetworkManager | null>(null);
+  const [isMultiplayer, setIsMultiplayer] = useState<boolean>(false);
+  const [multiplayerScreen, setMultiplayerScreen] = useState<'menu' | 'host' | 'join' | 'lobby' | 'game'>('menu');
+  const [multiplayerRoom, setMultiplayerRoom] = useState<string>('');
+  const [multiplayerName, setMultiplayerName] = useState<string>('Player');
 
   // Sync state machine to document.body.dataset.state
   useEffect(() => {
@@ -109,6 +120,12 @@ export default function App() {
   useEffect(() => {
     if (!mountRef.current) return;
     setWebGlError(null);
+
+    // Initialize multiplayer systems
+    const newMultiplayerEngine = new MultiplayerEngine();
+    const newNetworkManager = new NetworkManager();
+    setMultiplayerEngine(newMultiplayerEngine);
+    setNetworkManager(newNetworkManager);
 
     let engine: GameEngine | null = null;
     try {
@@ -151,6 +168,11 @@ export default function App() {
         },
       });
 
+      // Attach multiplayer to engine
+      if (engine && newMultiplayerEngine && newNetworkManager) {
+        engine.attachMultiplayer(newMultiplayerEngine, newNetworkManager);
+      }
+
       if (engine.webGlFailed) {
         setWebGlError('WebGL hardware context could not be acquired.');
       } else {
@@ -176,6 +198,9 @@ export default function App() {
         engine.destroy();
       }
       engineRef.current = null;
+      if (newMultiplayerEngine) {
+        newMultiplayerEngine.disconnect();
+      }
     };
   }, [engineRetryKey]);
 
@@ -263,6 +288,42 @@ export default function App() {
     engineRef.current.exitPointerLock();
     setMenuScreen('main');
     setGameState('title');
+    setIsMultiplayer(false);
+    setMultiplayerScreen('menu');
+  }, []);
+
+  // Multiplayer actions
+  const handleOpenMultiplayer = useCallback(() => {
+    setMultiplayerScreen('menu');
+  }, []);
+
+  const handleStartMultiplayer = useCallback(async (room: string, isHost: boolean, name: string) => {
+    if (!engineRef.current || !multiplayerEngine || !networkManager) return;
+    
+    try {
+      await engineRef.current.startMultiplayer(room, isHost, name);
+      setIsMultiplayer(true);
+      setMultiplayerRoom(room);
+      setMultiplayerName(name);
+      setGameState('playing');
+    } catch (err) {
+      console.error('Failed to start multiplayer:', err);
+    }
+  }, [multiplayerEngine, networkManager]);
+
+  const handleLeaveMultiplayer = useCallback(() => {
+    if (!engineRef.current) return;
+    engineRef.current.stopMultiplayer();
+    setIsMultiplayer(false);
+    setMultiplayerScreen('menu');
+    setGameState('title');
+  }, []);
+
+  const handleStartMultiplayerGame = useCallback(() => {
+    if (!engineRef.current) return;
+    engineRef.current.startMatch(DEFAULT_MATCH_CONFIG);
+    setMultiplayerScreen('game');
+    setGameState('playing');
   }, []);
 
   const handleUpdateSettings = useCallback((newSettings: GameSettings) => {
@@ -341,6 +402,8 @@ export default function App() {
             setGameState('paused');
             engineRef.current?.exitPointerLock();
           }}
+          onOpenMultiplayer={handleOpenMultiplayer}
+          isMultiplayer={isMultiplayer}
         />
       )}
 
@@ -378,6 +441,18 @@ export default function App() {
           onResume={handleResume}
           onRestart={handleRestart}
           onReturnTitle={handleReturnTitle}
+        />
+      )}
+
+      {/* Multiplayer UI Overlay */}
+      {isMultiplayer && multiplayerEngine && networkManager && (
+        <MultiplayerUI
+          multiplayerEngine={multiplayerEngine}
+          networkManager={networkManager}
+          onBackToMenu={() => {
+            handleLeaveMultiplayer();
+          }}
+          onStartGame={handleStartMultiplayerGame}
         />
       )}
 

@@ -26,6 +26,8 @@ import { evaluateKillScore, checkMatchEnd } from './rules';
 import { sound } from './audio';
 import { statsChanged, minimapChanged, LastMinimap } from './notifyGate';
 import { ScoreboardEntry, PLAYER_SCOREBOARD_ID } from './scoreboard';
+import { MultiplayerEngine } from './MultiplayerEngine';
+import { NetworkManager } from './NetworkManager';
 
 export interface EngineCallbacks {
   onStatsUpdate: (stats: PlayerStats) => void;
@@ -149,6 +151,32 @@ export class GameEngine {
   private lastStatsPayload: PlayerStats | null = null;
   private lastMinimapSample: LastMinimap | null = null;
   private lastScoreboardAt = 0;
+
+  // Multiplayer state
+  private multiplayerEngine: MultiplayerEngine | null = null;
+  private networkManager: NetworkManager | null = null;
+  public isMultiplayer: boolean = false;
+  private multiplayerRoom: string = '';
+  private multiplayerName: string = '';
+  private multiplayerInputBuffer: Partial<{
+    yaw: number;
+    pitch: number;
+    keys: Record<string, boolean>;
+    fire: boolean;
+  }> = {};
+
+  // Public getters for testing
+  public get botsList(): BotState[] {
+    return this.bots;
+  }
+
+  public get multiplayerRoomCode(): string {
+    return this.multiplayerRoom;
+  }
+
+  public get ammoCount(): number {
+    return this.ammo;
+  }
 
   constructor(container: HTMLDivElement, settings: GameSettings, callbacks: EngineCallbacks) {
     this.container = container;
@@ -362,6 +390,8 @@ export class GameEngine {
   }
 
   private spawnBots(difficulty: BotDifficulty = 'regular') {
+    if (this.isMultiplayer) return; // Don't spawn bots in multiplayer
+    
     const personalities: BotPersonality[] = [
       'assault',
       'flanker',
@@ -377,6 +407,77 @@ export class GameEngine {
       this.bots.push(bot);
       this.scene.add(bot.mesh);
     });
+  }
+
+  // Multiplayer integration methods
+  public attachMultiplayer(multiplayerEngine: MultiplayerEngine, networkManager: NetworkManager): void {
+    this.multiplayerEngine = multiplayerEngine;
+    this.networkManager = networkManager;
+    
+    // Attach game engine to multiplayer engine
+    multiplayerEngine.attachGameEngine({
+      update: (delta: number) => this.update(delta),
+      getPlayerState: () => ({
+        pos: [this.physics.pos.x, this.physics.pos.y, this.physics.pos.z],
+        rot: [this.pitch, this.yaw, 0],
+        hp: this.hp,
+        weapon: this.activeWeapon.id
+      })
+    });
+    
+    // Set up multiplayer event handlers
+    multiplayerEngine.onPlayerJoinHandler((player) => {
+      console.log('Player joined:', player.name);
+    });
+    
+    multiplayerEngine.onPlayerLeaveHandler((playerId) => {
+      console.log('Player left:', playerId);
+    });
+  }
+
+  public startMultiplayer(room: string, isHost: boolean, name: string): Promise<void> {
+    if (!this.multiplayerEngine || !this.networkManager) {
+      throw new Error('Multiplayer system not attached');
+    }
+    
+    this.multiplayerRoom = room;
+    this.multiplayerName = name;
+    this.isMultiplayer = true;
+    
+    // Clear bots for multiplayer games
+    if (this.bots.length > 0) {
+      for (const bot of this.bots) {
+        this.scene.remove(bot.mesh);
+      }
+      this.bots = [];
+    }
+    
+    return this.multiplayerEngine.startMultiplayer(room, isHost, name);
+  }
+
+  public stopMultiplayer(): void {
+    if (this.multiplayerEngine) {
+      this.multiplayerEngine.disconnect();
+      this.multiplayerEngine = null;
+    }
+    
+    if (this.networkManager) {
+      this.networkManager = null;
+    }
+    
+    this.isMultiplayer = false;
+    this.multiplayerRoom = '';
+    this.multiplayerName = '';
+    this.multiplayerInputBuffer = {};
+    
+    // Respawn bots for single-player mode
+    this.spawnBots();
+  }
+
+  public sendMultiplayerInput(): void {
+    if (this.isMultiplayer && this.multiplayerEngine && !this.multiplayerEngine.isHost) {
+      this.multiplayerEngine.sendPlayerInput(this.multiplayerInputBuffer);
+    }
   }
 
   private initInputListeners() {
@@ -943,6 +1044,16 @@ export class GameEngine {
   }
 
   private updatePlayerPhysics(dt: number) {
+    // Store input for multiplayer
+    if (this.isMultiplayer) {
+      this.multiplayerInputBuffer = {
+        yaw: this.yaw,
+        pitch: this.pitch,
+        keys: Object.fromEntries(Array.from(this.keysHeld).map(key => [key, true])),
+        fire: this.mouseButtonsHeld.has(0)
+      };
+    }
+
     // Continuous fire for automatic weapons
     if (this.mouseButtonsHeld.has(0) && (this.activeWeapon.category === 'AR' || this.activeWeapon.category === 'SMG')) {
 
@@ -1276,6 +1387,12 @@ export class GameEngine {
             );
           }
 
+          // Update multiplayer engine
+          if (this.multiplayerEngine) {
+            this.multiplayerEngine.update(dt);
+            this.sendMultiplayerInput();
+          }
+
           // Match Timer countdown
           const winner = this.matchLoop.advance(dt, this.kills, this.scoreLimit);
           if (winner) {
@@ -1316,6 +1433,11 @@ export class GameEngine {
     };
 
     tick();
+  }
+
+  public update(delta: number): void {
+    // This method is called by the multiplayer engine
+    // The actual game logic is in the main game loop
   }
 
   public destroy() {

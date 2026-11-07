@@ -4,7 +4,7 @@ import { respawnProgress } from '../game/respawn';
 import { formatKillfeed } from '../game/killfeed';
 import { MINIMAP_VIEW, HULL_PATH, MAP_ZONES, MAP_FEATURES, projectToMap, playerRotationDeg } from '../game/minimap';
 import { buildScoreboard, ScoreboardEntry } from '../game/scoreboard';
-import { Volume2, VolumeX, Pause, Zap, Award } from 'lucide-react';
+import { Volume2, VolumeX, Pause, Zap, Award, Users } from 'lucide-react';
 import { sound } from '../game/audio';
 
 interface HUDProps {
@@ -25,6 +25,8 @@ interface HUDProps {
   onToggleScoreboard: () => void;
   fpsOverlay?: React.ReactNode;
   onPause: () => void;
+  onOpenMultiplayer?: () => void;
+  isMultiplayer?: boolean;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -42,6 +44,8 @@ export const HUD: React.FC<HUDProps> = ({
   onToggleScoreboard,
   fpsOverlay,
   onPause,
+  onOpenMultiplayer,
+  isMultiplayer = false
 }) => {
   const [ghostHp, setGhostHp] = useState(stats.hp);
   const [isMuted, setIsMuted] = useState(sound.getIsMuted());
@@ -340,6 +344,23 @@ export const HUD: React.FC<HUDProps> = ({
           >
             RANKS
           </button>
+          {onOpenMultiplayer && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenMultiplayer();
+              }}
+              aria-label="Multiplayer"
+              title="Multiplayer"
+              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black tracking-widest transition-colors cursor-pointer pointer-events-auto focus-visible:outline-2 focus-visible:outline-amber-400 ${
+                isMultiplayer 
+                  ? 'bg-purple-600/50 text-purple-200 border border-purple-500/50' 
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Users className="w-4 h-4 pointer-events-none" />
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();

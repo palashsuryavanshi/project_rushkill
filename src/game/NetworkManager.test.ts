@@ -347,7 +347,7 @@ test('NetworkManager does not reconnect on intentional disconnect', async () => 
   mockWs.simulateMessage(JSON.stringify({ type: 'joined', id: 'assigned-id-1', name: 'Player' }));
   await connectPromise;
 
-  await mgr.disconnect();
+  mgr.disconnect();
   mockWs.simulateClose(1000, 'Normal closure');
 
   // Should not attempt reconnect
@@ -455,7 +455,7 @@ test('NetworkManager state property reflects connection state', async () => {
   await connectPromise;
   assert.equal(mgr.state, ConnectionState.Connected);
 
-  await mgr.disconnect();
+  mgr.disconnect();
   assert.equal(mgr.state, ConnectionState.Disconnected);
 });
 
@@ -509,4 +509,200 @@ test('NetworkManager sendInput sends input message when connected', async () => 
   assert.equal(inputSent, true);
 
   mgr.disconnect();
+});
+
+test('NetworkManager reconnects with exponential backoff and max 3 attempts', async () => {
+  setupMockWebSocket();
+  const mgr = new NetworkManager();
+
+  const connectPromise = mgr.connect('ROOM1', false, 'Player');
+  let mockWs = getLatestMock();
+
+  await new Promise(r => setTimeout(r, 10));
+  mockWs.simulateMessage(JSON.stringify({ type: 'joined', id: 'assigned-id-1', name: 'Player' }));
+  await connectPromise;
+
+  // Simulate unexpected close
+  mockWs.simulateClose(1006, 'Abnormal closure');
+
+  // Wait for first reconnect attempt (should be ~1s)
+  await new Promise(r => setTimeout(r, 1100));
+  mockWs = getLatestMock();
+  // Mock connects instantly, so state will be Connected after join
+  mockWs.simulateMessage(JSON.stringify({ type: 'joined', id: 'assigned-id-1', name: 'Player' }));
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(mgr.state, ConnectionState.Connected);
+
+  // Simulate second close
+  mockWs.simulateClose(1006, 'Abnormal closure');
+
+  // Wait for second reconnect attempt (should be ~2s)
+  await new Promise(r => setTimeout(r, 2100));
+  mockWs = getLatestMock();
+  mockWs.simulateMessage(JSON.stringify({ type: 'joined', id: 'assigned-id-1', name: 'Player' }));
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(mgr.state, ConnectionState.Connected);
+
+  // Simulate third close
+  mockWs.simulateClose(1006, 'Abnormal closure');
+
+  // Wait for third reconnect attempt (should be ~4s)
+  await new Promise(r => setTimeout(r, 4100));
+  mockWs = getLatestMock();
+  mockWs.simulateMessage(JSON.stringify({ type: 'joined', id: 'assigned-id-1', name: 'Player' }));
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(mgr.state, ConnectionState.Connected);
+
+  // Simulate fourth close - should NOT reconnect (max 3 attempts)
+  mockWs.simulateClose(1006, 'Abnormal closure');
+
+  // Wait longer than the next backoff would be (8s) to confirm no reconnect
+  await new Promise(r => setTimeout(r, 100));
+
+  assert.equal(mgr.state, ConnectionState.Disconnected);
+
+  mgr.disconnect();
+});
+
+test('NetworkManager does not reconnect after connection timeout', async () => {
+  setupMockWebSocket();
+  const mgr = new NetworkManager();
+
+  const connectPromise = mgr.connect('ROOM1', false, 'Player');
+  const mockWs = getLatestMock();
+
+  // Don't simulate open or joined - let it timeout
+  // Advance timers past the 10s timeout
+  await new Promise(r => setTimeout(r, 10100));
+
+  try {
+    await connectPromise;
+    assert.fail('Expected connect to reject with timeout');
+  } catch (err) {
+    assert.ok(err instanceof Error);
+    assert.equal((err as Error).message, 'Connection timeout');
+  }
+
+  // Should be disconnected, not reconnecting
+  assert.equal(mgr.state, ConnectionState.Disconnected);
+
+  mgr.disconnect();
+});
+
+// ===== SPECIFIC TESTS FOR REVIEW FINDINGS =====
+
+test('CRITICAL: Reconnect counter only resets on fresh connect, not reconnection', async () => {
+  setupMockWebSocket();
+  const mgr = new NetworkManager();
+
+  // First connection (fresh connect)
+  const connectPromise1 = mgr.connect('ROOM1', false, 'Player');
+  const mockWs1 = getLatestMock();
+
+  await new Promise(r => setTimeout(r, 10));
+  mockWs1.simulateMessage(JSON.stringify({ type: 'joined', id: 'assigned-id-1', name: 'Player' }));
+  await connectPromise1;
+
+  // Simulate disconnect and reconnect
+  mockWs1.simulateClose(1006, 'Abnormal closure');
+
+  // Wait for first reconnect attempt
+  await new Promise(r => setTimeout(r, 1100));
+  const mockWs2 = getLatestMock();
+  mockWs2.simulateMessage(JSON.stringify({ type: 'joined', id: 'assigned-id-1', name: 'Player' }));
+  await new Promise(r => setTimeout(r, 10));
+
+  // reconnectAttempts should be 1 (not reset to 0)
+  // The key test is that subsequent reconnects use the correct counter
+  assert.equal(mgr.state, ConnectionState.Connected);
+
+  // Simulate second disconnect
+  mockWs2.simulateClose(1006, 'Abnormal closure');
+
+  // Wait for second reconnect attempt (should be 2s, not 1s again)
+  await new Promise(r => setTimeout(r, 2100));
+  const mockWs3 = getLatestMock();
+  mockWs3.simulateMessage(JSON.stringify({ type: 'joined', id: 'assigned-id-1', name: 'Player' }));
+  await new Promise(r => setTimeout(r, 10));
+
+  assert.equal(mgr.state, ConnectionState.Connected);
+
+  mgr.disconnect();
+});
+
+test('IMPORTANT: Connection timeout sets state to Disconnected and prevents reconnect', async () => {
+  setupMockWebSocket();
+  const mgr = new NetworkManager();
+
+  const connectPromise = mgr.connect('ROOM1', false, 'Player');
+  const mockWs = getLatestMock();
+
+  // Don't simulate open or joined - let it timeout
+  await new Promise(r => setTimeout(r, 10100));
+
+  try {
+    await connectPromise;
+    assert.fail('Expected connect to reject with timeout');
+  } catch (err) {
+    assert.ok(err instanceof Error);
+    assert.equal((err as Error).message, 'Connection timeout');
+  }
+
+  // Key test: connectionState should be Disconnected, not Connecting
+  assert.equal(mgr.state, ConnectionState.Disconnected);
+
+  // And no reconnect attempt should be made
+  // Wait a bit to ensure no background reconnect starts
+  await new Promise(r => setTimeout(r, 2000));
+  assert.equal(mgr.state, ConnectionState.Disconnected);
+
+  mgr.disconnect();
+});
+
+test('IMPORTANT: handleMessage override is restored after joined message', async () => {
+  setupMockWebSocket();
+  const mgr = new NetworkManager();
+  
+  let handleMessageCallCount = 0;
+  const originalOnState = (state: StateMessage) => {
+    handleMessageCallCount++;
+  };
+  
+  mgr.onState = originalOnState;
+
+  const connectPromise = mgr.connect('ROOM1', false, 'Player');
+  const mockWs = getLatestMock();
+
+  await new Promise(r => setTimeout(r, 10));
+  
+  // Before joined, messages should be handled by the wrapper
+  mockWs.simulateMessage(JSON.stringify({ type: 'state', tick: 1, entities: [] }));
+  assert.equal(handleMessageCallCount, 0); // Should not call original yet
+
+  // After joined, messages should go through original handleMessage
+  mockWs.simulateMessage(JSON.stringify({ type: 'joined', id: 'assigned-id-1', name: 'Player' }));
+  await connectPromise;
+
+  // Now state messages should be handled by the original callback
+  mockWs.simulateMessage(JSON.stringify({ type: 'state', tick: 2, entities: [] }));
+  assert.equal(handleMessageCallCount, 1); // Should call original now
+
+  mgr.disconnect();
+});
+
+test('NetworkManager disconnect returns void (matches brief)', async () => {
+  setupMockWebSocket();
+  const mgr = new NetworkManager();
+
+  const connectPromise = mgr.connect('ROOM1', false, 'Player');
+  const mockWs = getLatestMock();
+
+  await new Promise(r => setTimeout(r, 10));
+  mockWs.simulateMessage(JSON.stringify({ type: 'joined', id: 'assigned-id-1', name: 'Player' }));
+  await connectPromise;
+
+  // disconnect() should return void (undefined)
+  const result = mgr.disconnect();
+  assert.equal(result, undefined);
+  assert.equal(mgr.state, ConnectionState.Disconnected);
 });

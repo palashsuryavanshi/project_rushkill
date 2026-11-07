@@ -62,6 +62,9 @@ export class NetworkManager {
   private pingIntervalId: ReturnType<typeof setInterval> | null = null;
   private pongReceived: boolean = true;
   private latestStateValue: StateMessage | null = null;
+  private isReconnecting: boolean = false;
+  private connectionTimedOut: boolean = false;
+  private isFreshConnect: boolean = true;
 
   // Event callbacks
   public onState: StateCallback | null = null;
@@ -116,7 +119,13 @@ export class NetworkManager {
     this.isHostFlag = isHost;
     this.playerName = name;
     this.connectionState = ConnectionState.Connecting;
-    this.reconnectAttempts = 0;
+    this.connectionTimedOut = false;
+
+    // Only reset reconnectAttempts on fresh connect, not on reconnection
+    if (this.isFreshConnect) {
+      this.reconnectAttempts = 0;
+    }
+    this.isFreshConnect = false;
 
     return new Promise((resolve, reject) => {
       try {
@@ -125,7 +134,10 @@ export class NetworkManager {
 
         this.ws.onopen = () => {
           this.connectionState = ConnectionState.Connected;
-          this.reconnectAttempts = 0;
+          // Only reset reconnectAttempts on fresh connect, not on reconnection
+          if (this.isFreshConnect) {
+            this.reconnectAttempts = 0;
+          }
           this.pongReceived = true;
           this.startPingInterval();
           this.flushMessageQueue();
@@ -151,23 +163,20 @@ export class NetworkManager {
           console.error('[NetworkManager] WebSocket error:', event);
         };
 
-        // Wait for joined message to resolve
-        const originalOnState = this.onState;
-        this.onState = (stateMsg) => {
-          if (originalOnState) originalOnState(stateMsg);
-        };
+        // Store original handleMessage to restore after joined
+        const originalHandleMessage = this.handleMessage.bind(this);
 
         // We'll resolve when we receive the joined message
         const checkJoined = (msg: Message) => {
           if (msg.type === 'joined') {
             this.assignedId = msg.id;
-            this.onState = originalOnState;
+            // Restore original handleMessage after joined is received
+            this.handleMessage = originalHandleMessage;
             resolve();
           }
         };
 
         // Temporarily intercept messages to catch joined
-        const originalHandleMessage = this.handleMessage.bind(this);
         this.handleMessage = (data: string) => {
           try {
             const msg = JSON.parse(data) as Message;
@@ -181,6 +190,8 @@ export class NetworkManager {
         // Timeout for connection
         setTimeout(() => {
           if (this.connectionState === ConnectionState.Connecting) {
+            this.connectionTimedOut = true;
+            this.connectionState = ConnectionState.Disconnected;
             this.ws?.close();
             reject(new Error('Connection timeout'));
           }
@@ -217,10 +228,12 @@ export class NetworkManager {
   /**
    * Disconnect from the server.
    */
-  public async disconnect(): Promise<void> {
+  public disconnect(): void {
     this.stopPingInterval();
     this.connectionState = ConnectionState.Disconnected;
     this.reconnectAttempts = 0;
+    this.isReconnecting = false;
+    this.isFreshConnect = true;
 
     if (this.ws) {
       this.ws.onopen = null;
@@ -331,7 +344,20 @@ export class NetworkManager {
     this.ws = null;
 
     if (this.connectionState === ConnectionState.Disconnected) {
-      // Intentional disconnect
+      // Intentional disconnect or already handled
+      return;
+    }
+
+    // Don't reconnect if connection timed out - the connect() Promise already rejected
+    if (this.connectionTimedOut) {
+      this.connectionTimedOut = false;
+      this.connectionState = ConnectionState.Disconnected;
+      return;
+    }
+
+    // Don't reconnect if ping timeout occurred
+    if (event.code === 1006 && event.reason === 'Ping timeout') {
+      this.connectionState = ConnectionState.Disconnected;
       return;
     }
 
@@ -350,6 +376,8 @@ export class NetworkManager {
   /** Schedule a reconnection attempt with exponential backoff */
   private scheduleReconnect(): void {
     this.connectionState = ConnectionState.Reconnecting;
+    this.isReconnecting = true;
+    // isFreshConnect remains false for reconnection attempts
     const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, this.reconnectAttempts);
     this.reconnectAttempts++;
 
@@ -369,7 +397,14 @@ export class NetworkManager {
   private startPingInterval(): void {
     this.stopPingInterval();
     this.pingIntervalId = setInterval(() => {
-      if (!this.isConnected || !this.ws) {
+      // Check if we should even be running ping interval
+      if (this.connectionState === ConnectionState.Disconnected || !this.ws) {
+        this.stopPingInterval();
+        return;
+      }
+
+      // If not connected, stop the interval
+      if (this.ws.readyState !== WebSocket.OPEN) {
         this.stopPingInterval();
         return;
       }
@@ -377,7 +412,10 @@ export class NetworkManager {
       if (!this.pongReceived) {
         // Missed pong - connection is dead
         console.log('[NetworkManager] Ping timeout, closing connection');
-        this.ws.close();
+        this.connectionTimedOut = true;
+        this.connectionState = ConnectionState.Disconnected;
+        this.ws.close(1006, 'Ping timeout');
+        this.stopPingInterval();
         return;
       }
 
