@@ -193,12 +193,6 @@ export function buildHijackedMap(): MapData {
     depthWrite: false,
   });
 
-  const matTunnelMetal = new THREE.MeshStandardMaterial({
-    color: 0x24262b,
-    roughness: 0.7,
-    metalness: 0.5,
-  });
-
   const matHazardAmber = new THREE.MeshBasicMaterial({
     color: 0xe2a13c,
   });
@@ -233,7 +227,6 @@ export function buildHijackedMap(): MapData {
     [matBrass.uuid, matBrass],
     [matGlassTeal.uuid, matGlassTeal],
     [matPoolWater.uuid, matPoolWater],
-    [matTunnelMetal.uuid, matTunnelMetal],
     [matHazardAmber.uuid, matHazardAmber],
     [matCoverAccent.uuid, matCoverAccent],
     [matNavy.uuid, matNavy],
@@ -256,12 +249,8 @@ export function buildHijackedMap(): MapData {
   createSolidBox(0.3, 6.0, 108, 12.05, -6.4, 0, matDarkMetal);
   createSolidBox(24.4, 0.3, 108, 0, -6.7, 0, matDarkMetal, { noCollider: true });
 
-  // Deck undertray (tunnel ceiling), cut around both maintenance stairwells.
-  createSolidBox(21.8, 0.3, 36, 0, -0.7, -36, matDarkMetal);
-  createSolidBox(19.4, 0.3, 8, 1.2, -0.7, -14, matDarkMetal);
-  createSolidBox(21.8, 0.3, 20, 0, -0.7, 0, matDarkMetal);
-  createSolidBox(19.4, 0.3, 8, -1.2, -0.7, 14, matDarkMetal);
-  createSolidBox(21.8, 0.3, 36, 0, -0.7, 36, matDarkMetal);
+  // Deck undertray (tunnel ceiling): one continuous slab now the stairwells are gone.
+  createSolidBox(21.8, 0.3, 108, 0, -0.7, 0, matDarkMetal);
 
   // Pointed Bow taper
   const bowNoseGeo = new THREE.ConeGeometry(13, 24, 4);
@@ -274,8 +263,8 @@ export function buildHijackedMap(): MapData {
   // Deck floors: top face at exactly Y = 0.0, one slab per zone, full width.
   createSolidBox(24.4, 0.4, 18, 0, -0.4, -45, matTeakDeck, { renderOrder: 0 }); // bow deck
   createSolidBox(17.0, 0.4, 36, 0, -0.4, 0, matTeakDeck, { renderOrder: 0 }); // centre deck core
-  createSolidBox(3.7, 0.4, 28, -10.35, -0.4, 4, matTeakDeck, { renderOrder: 0 }); // port strip (stairwell cut out)
-  createSolidBox(3.7, 0.4, 28, 10.35, -0.4, -4, matTeakDeck, { renderOrder: 0 }); // starboard strip (stairwell cut out)
+  createSolidBox(3.7, 0.4, 28, -10.35, -0.4, 4, matTeakDeck, { renderOrder: 0 }); // port strip
+  createSolidBox(3.7, 0.4, 28, 10.35, -0.4, -4, matTeakDeck, { renderOrder: 0 }); // starboard strip
   createSolidBox(17.0, 0.4, 18, 0, -0.4, -27, matTeakDeck, { renderOrder: 0 }); // bow cabin floor
   createSolidBox(17.0, 0.4, 18, 0, -0.4, 27, matTeakDeck, { renderOrder: 0 }); // stern cabin floor
   createSolidBox(3.7, 0.4, 18, -10.35, -0.4, -27, matTeakDeck, { renderOrder: 0 }); // bow port walkway
@@ -449,21 +438,16 @@ export function buildHijackedMap(): MapData {
   createSolidBox(2.0, 0.7, 1.0, 0, 0, -11, matNavy);
   createSolidBox(2.0, 0.7, 1.0, 0, 0, 11, matNavy);
 
-  // Maintenance stairwells (10 treads descending 0.34 m each) and brass rails.
-  for (let i = 0; i < 10; i++) {
-    createSolidBox(2.4, 0.34, 0.8, 10.2, -(i + 1) * 0.34, 10 + i * 0.8, matDarkMetal);
-    createSolidBox(2.4, 0.34, 0.8, -10.2, -(i + 1) * 0.34, -10 - i * 0.8, matDarkMetal);
-  }
-  createSolidBox(0.15, 1.0, 8, 8.55, 0, 14, matBrass);
-  createSolidBox(0.15, 1.0, 8, -8.55, 0, -14, matBrass);
-  // Narrow outboard service ledges keep both walkways continuous bot lanes
-  // across their maintenance stairwell cuts (port z -18..-10, starboard z 10..18).
-  createSolidBox(1.0, 0.4, 8, -11.7, -0.4, -14, matTeakDeck);
-  createSolidBox(1.0, 0.4, 8, 11.7, -0.4, 14, matTeakDeck);
+  // Full-width teak deck closes both former maintenance stairwell cuts
+  // (port z -18..-10, starboard z 10..18) so the walkways are continuous.
+  // 8.02 m long: 1 cm into each neighbouring slab so the seam points are
+  // covered without a visible z-fighting band.
+  createSolidBox(3.7, 0.4, 8.02, -10.35, -0.4, -14, matTeakDeck, { renderOrder: 0 });
+  createSolidBox(3.7, 0.4, 8.02, 10.35, -0.4, 14, matTeakDeck, { renderOrder: 0 });
 
   // Staggered walkway cover: one crate cluster per side, outboard-rail side,
-  // clear of both stairwells and every waypoint lane (inner face x ±10.8 vs
-  // the ±10.2 walkway lane).
+  // clear of both former stairwell cuts and every waypoint lane (inner face
+  // x ±10.8 vs the ±10.2 walkway lane).
   createSolidBox(1.4, 1.0, 1.4, -11.5, 0, -5, matCoverAccent);
   createSolidBox(0.8, 0.6, 0.8, -11.5, 1.0, -5, matNavy);
   createSolidBox(1.4, 1.0, 1.4, 11.5, 0, 23.5, matNavy);
@@ -490,35 +474,7 @@ export function buildHijackedMap(): MapData {
   }
 
   // ==========================================
-  // 5. BELOW-DECK MAINTENANCE TUNNEL
-  // ==========================================
-  createSolidBox(5.2, 0.3, 72, 0, -3.4, 0, matTunnelMetal);
-  createSolidBox(0.3, 3.4, 48, 2.75, -3.4, -12, matDarkMetal);
-  createSolidBox(0.3, 3.4, 20, 2.75, -3.4, 26, matDarkMetal);
-  createSolidBox(0.3, 3.4, 20, -2.75, -3.4, -26, matDarkMetal);
-  createSolidBox(0.3, 3.4, 48, -2.75, -3.4, 12, matDarkMetal);
-
-  // Side branches and stair landings.
-  createSolidBox(7.6, 0.3, 4, 6.4, -3.4, 14, matTunnelMetal);
-  createSolidBox(3.7, 0.3, 4, 10.35, -3.4, 16, matTunnelMetal);
-  createSolidBox(7.6, 0.3, 4, -6.4, -3.4, -14, matTunnelMetal);
-  createSolidBox(3.7, 0.3, 4, -10.35, -3.4, -16, matTunnelMetal);
-
-  // End caps and decorative bulkhead frames.
-  createSolidBox(5.2, 3.4, 0.3, 0, -3.4, -36.1, matTunnelMetal);
-  createSolidBox(5.2, 3.4, 0.3, 0, -3.4, 36.1, matTunnelMetal);
-  for (const z of [-24, -12, 12, 24]) {
-    createSolidBox(5.2, 0.8, 0.2, 0, -1.2, z, matTunnelMetal, { noCollider: true });
-  }
-
-  // Crate clusters against the tunnel walls (clear of the centre path).
-  createSolidBox(1.2, 1.0, 1.2, 1.8, -3.4, -6, matCoverAccent);
-  createSolidBox(1.2, 1.0, 1.2, 1.8, -3.4, 6, matNavy);
-  createSolidBox(1.2, 1.0, 1.2, -1.8, -3.4, -6, matNavy);
-  createSolidBox(1.2, 1.0, 1.2, -1.8, -3.4, 6, matCoverAccent);
-
-  // ==========================================
-  // 6. STERN DECK - JACUZZI & COVER
+  // 5. STERN DECK - JACUZZI & COVER
   // ==========================================
   createSolidBox(6.5, 1.2, 6.5, 0, 0, 50, matTeakDeck);
   const jacuzziWater = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.2, 5.2), matPoolWater);
@@ -557,13 +513,7 @@ export function buildHijackedMap(): MapData {
   dome2.position.set(3.5, 8.6, 27);
   root.add(dome2);
 
-  // Warm practicals: four tunnel, two cabin, one lounge = 7 point lights.
-  for (const z of [-24, -8, 8, 24]) {
-    createSolidBox(0.6, 0.15, 0.4, 0, -1.25, z, matHazardAmber, { noCollider: true });
-    const light = new THREE.PointLight(0xffa53a, 0.7, 9);
-    light.position.set(0, -1.2, z);
-    root.add(light);
-  }
+  // Warm practicals: two cabin, one lounge = 3 point lights.
   for (const z of [-27, 27]) {
     const light = new THREE.PointLight(0xffb46b, 0.8, 12);
     light.position.set(0, 3.0, z);
@@ -575,7 +525,7 @@ export function buildHijackedMap(): MapData {
 
 
   // ==========================================
-  // 7. SUNSET SKY DOME & SUN DISC
+  // 6. SUNSET SKY DOME & SUN DISC
   // ==========================================
   // Radius 380 (not 400) so the far side of the dome stays inside the 450 m camera far
   // plane from the deck ends: worst case |camera| ~= 54.5 m, so 380 + 54.5 = 434.5 m.
@@ -617,7 +567,7 @@ export function buildHijackedMap(): MapData {
   root.add(sunDisc);
 
   // ==========================================
-  // 8. OCEAN WATER & HORIZON ISLANDS
+  // 7. OCEAN WATER & HORIZON ISLANDS
   // ==========================================
   const waterPlaneGeo = new THREE.PlaneGeometry(500, 500, 32, 32);
   waterPlaneGeo.rotateX(-Math.PI / 2);
@@ -681,7 +631,7 @@ export function buildHijackedMap(): MapData {
   });
 
   // ==========================================
-  // 9. SPAWN POINTS & WAYPOINT GRAPH
+  // 8. SPAWN POINTS & WAYPOINT GRAPH
   // ==========================================
   const spawnPoints: THREE.Vector3[] = [
     new THREE.Vector3(0, 0.1, -46),
@@ -715,7 +665,7 @@ export function buildHijackedMap(): MapData {
     { id: 'port_north', pos: v(-10.2, 0.1, -26.5), neighbors: ['bow_port', 'bow_port_room', 'port_bridge_north'], area: 'midship' },
     { id: 'port_bridge_north', pos: v(-11.7, 0.1, -18.4), neighbors: ['port_north', 'port_bridge_south'], area: 'midship' },
     { id: 'port_bridge_south', pos: v(-11.7, 0.1, -9.6), neighbors: ['port_bridge_north', 'port_mid'], area: 'midship' },
-    { id: 'port_mid', pos: v(-10.2, 0.1, -7), neighbors: ['port_bridge_south', 'pool_edge', 'port_center', 'maint_port_bottom'], area: 'midship' },
+    { id: 'port_mid', pos: v(-10.2, 0.1, -7), neighbors: ['port_bridge_south', 'pool_edge', 'port_center'], area: 'midship' },
     { id: 'port_center', pos: v(-10.2, 0.1, 4), neighbors: ['port_mid', 'port_aft'], area: 'midship' },
     { id: 'port_aft', pos: v(-10.2, 0.1, 15), neighbors: ['port_center', 'port_south'], area: 'midship' },
     { id: 'port_south', pos: v(-10.2, 0.1, 26.5), neighbors: ['port_aft', 'port_deck', 'stern_port_room'], area: 'midship' },
@@ -727,7 +677,7 @@ export function buildHijackedMap(): MapData {
     { id: 'star_north', pos: v(10.2, 0.1, -27), neighbors: ['bow_star', 'bow_star_room', 'star_center'], area: 'midship' },
     { id: 'star_center', pos: v(10.2, 0.1, -16), neighbors: ['star_north', 'star_mid'], area: 'midship' },
     { id: 'star_mid', pos: v(10.2, 0.1, -5), neighbors: ['star_center', 'lounge', 'star_south'], area: 'midship' },
-    { id: 'star_south', pos: v(10.2, 0.1, 7), neighbors: ['star_mid', 'center_south', 'maint_star_bottom', 'star_bridge_south'], area: 'midship' },
+    { id: 'star_south', pos: v(10.2, 0.1, 7), neighbors: ['star_mid', 'center_south', 'star_bridge_south'], area: 'midship' },
     { id: 'star_bridge_south', pos: v(11.7, 0.1, 9.6), neighbors: ['star_south', 'star_bridge_north'], area: 'midship' },
     { id: 'star_bridge_north', pos: v(11.7, 0.1, 18.4), neighbors: ['star_bridge_south', 'star_aft'], area: 'midship' },
     { id: 'star_aft', pos: v(10.2, 0.1, 22), neighbors: ['star_tail', 'star_bridge_north'], area: 'midship' },
@@ -757,17 +707,6 @@ export function buildHijackedMap(): MapData {
     { id: 'stern_ext_top', pos: v(-10.2, 4.6, 35), neighbors: ['stern_stair_top'], area: 'upper' },
     { id: 'stern_deck', pos: v(0, 0.1, 38), neighbors: ['stern_cabin_door', 'star_deck', 'stern_jacuzzi'], area: 'stern' },
     { id: 'stern_jacuzzi', pos: v(5.5, 0.1, 46), neighbors: ['stern_deck', 'star_deck'], area: 'stern' },
-
-    // Maintenance tunnel
-    { id: 'maint_north', pos: v(0, -3.3, -32), neighbors: ['maint_n1'], area: 'midship' },
-    { id: 'maint_n1', pos: v(0, -3.3, -21), neighbors: ['maint_north', 'maint_port_junction'], area: 'midship' },
-    { id: 'maint_port_junction', pos: v(-2.6, -3.3, -14), neighbors: ['maint_n1', 'maint_n2', 'maint_port_bottom'], area: 'midship' },
-    { id: 'maint_n2', pos: v(0, -3.3, -6), neighbors: ['maint_port_junction', 'maint_center'], area: 'midship' },
-    { id: 'maint_center', pos: v(0, -3.3, 5), neighbors: ['maint_n2', 'maint_star_junction'], area: 'midship' },
-    { id: 'maint_star_junction', pos: v(2.6, -3.3, 14), neighbors: ['maint_center', 'maint_south', 'maint_star_bottom'], area: 'midship' },
-    { id: 'maint_south', pos: v(0, -3.3, 25), neighbors: ['maint_star_junction'], area: 'midship' },
-    { id: 'maint_star_bottom', pos: v(10.2, -3.3, 16.5), neighbors: ['maint_star_junction', 'star_south'], area: 'midship' },
-    { id: 'maint_port_bottom', pos: v(-10.2, -3.3, -16.5), neighbors: ['maint_port_junction', 'port_mid'], area: 'midship' },
   ];
 
   // Water animation & radar rotation

@@ -262,6 +262,43 @@ test('both walkways carry staggered crate cover clear of the stairwells', () => 
   }
 });
 
+test('no walkable geometry remains below deck', () => {
+  for (const c of solid) {
+    const spanX = c.max.x - c.min.x;
+    const spanZ = c.max.z - c.min.z;
+    if (Math.min(spanX, spanZ) >= 0.8 && c.max.y <= -0.45) {
+      assert.fail(
+        `below-deck surface ${spanX.toFixed(1)}x${spanZ.toFixed(1)} at y ${c.max.y.toFixed(2)}`
+      );
+    }
+  }
+});
+
+test('both walkways are continuously decked across the former stairwell cuts', () => {
+  const lanes = [
+    { x: -10.2, from: -18, to: -10 },
+    { x: 10.2, from: 10, to: 18 },
+  ];
+  for (const lane of lanes) {
+    for (let z = lane.from; z <= lane.to; z += 0.5) {
+      const deck = solid.some(
+        (c) =>
+          lane.x > c.min.x && lane.x < c.max.x &&
+          z > c.min.z && z < c.max.z &&
+          Math.abs(c.max.y) < 0.05
+      );
+      assert.ok(deck, `no deck at x ${lane.x}, z ${z}`);
+    }
+  }
+});
+
+test('no maintenance waypoints remain and nothing sits below deck', () => {
+  assert.equal(map.waypoints.some((w) => w.id.startsWith('maint_')), false);
+  for (const wp of map.waypoints) {
+    assert.ok(wp.pos.y >= -0.1, `${wp.id} is below deck at y ${wp.pos.y}`);
+  }
+});
+
 test('both upper firing faces are railed across the internal-stair mouth', () => {
   for (const m of [1, -1]) {
     const faceZ = -35 * m;
