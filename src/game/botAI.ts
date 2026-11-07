@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WeaponDef, BotDifficulty } from './types';
-import { RUSH_WEAPONS, getWeaponById, calculateShotDamage } from './weapons';
+import { RUSH_WEAPONS, getWeaponById } from './weapons';
+import { BOT_RESPAWN_SECONDS } from './respawn';
 import { WaypointNode, BoxCollider } from './mapHijacked';
 import { sound } from './audio';
 
@@ -953,7 +954,7 @@ export function updateBotAI(
     });
 
     if (shouldJump || nearbyObstacle) {
-      bot.velocity.y = 8.0; // Jump velocity
+      bot.velocity.y = 4.9; // Jump velocity (scaled for Earth gravity, ~1.2 m apex)
       bot.isGrounded = false;
       bot.canJump = false;
       bot.jumpCooldown = 1.0;
@@ -966,8 +967,8 @@ export function updateBotAI(
     bot.canJump = true;
   }
 
-  // Apply gravity to bots
-  const gravity = -9.81 * 2.65;
+  // Apply gravity to bots (1:1 Earth gravity, same as the player)
+  const gravity = -9.81;
   bot.velocity.y += gravity * dt;
 
   // Ground collision for bots
@@ -1133,7 +1134,7 @@ export function triggerBotHit(
   if (bot.hp <= 0) {
     bot.isDead = true;
     bot.deaths++;
-    bot.respawnTimer = 10.0;
+    bot.respawnTimer = BOT_RESPAWN_SECONDS;
 
     bot.bodyMesh.visible = false;
     bot.headMesh.visible = false;

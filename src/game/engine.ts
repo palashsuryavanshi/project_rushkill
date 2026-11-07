@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { WeaponDef, PlayerStats, KillfeedEntry, StreakBanner, HitmarkerData, FloatingDamage, GameSettings, MatchConfig, BotDifficulty } from './types';
-import { RUSH_WEAPONS, getWeaponById, calculateShotDamage } from './weapons';
+import { RUSH_WEAPONS, getWeaponById, calculateShotTotalDamage } from './weapons';
 import { buildHijackedMap, MapData, BoxCollider } from './mapHijacked';
 import { buildGunModel, GunRig } from './gunModels';
 import { BotState, BotPersonality, createBot, updateBotAI, triggerBotHit } from './botAI';
@@ -10,6 +10,7 @@ import { PlayerPhysics } from './playerPhysics';
 import { PointerLockController } from './pointerLock';
 import { EffectsPool } from './effectsPool';
 import { MatchLoop } from './matchLoop';
+import { pickSafestSpawn, PLAYER_RESPAWN_SECONDS } from './respawn';
 import { evaluateKillScore, checkMatchEnd } from './rules';
 import { sound } from './audio';
 import { statsChanged, minimapChanged, LastMinimap } from './notifyGate';
@@ -93,6 +94,10 @@ export class GameEngine {
 
   // Bots
   private bots: BotState[] = [];
+
+  // Player death / respawn
+  private isPlayerDead = false;
+  private playerRespawnTimer = 0;
 
   // Tracers & Particles Pool
   private effects!: EffectsPool;
@@ -331,10 +336,10 @@ export class GameEngine {
       this.keysHeld.add(e.code);
 
       // Edge triggers
-      if (e.code === 'Space') {
+      if (e.code === 'Space' && !this.isPlayerDead) {
         this.physics.queueJump(0.14); // coyote/jump buffering
       }
-      if (e.code === 'KeyR' && !this.isReloading && this.ammo < this.activeWeapon.magSize && this.reserveAmmo > 0) {
+      if (e.code === 'KeyR' && !this.isPlayerDead && !this.isReloading && this.ammo < this.activeWeapon.magSize && this.reserveAmmo > 0) {
         this.startReload();
       }
       if (e.code === 'KeyM') {
@@ -348,6 +353,7 @@ export class GameEngine {
 
     const onMouseDown = (e: MouseEvent) => {
       if (this.isTitleScreen) return;
+      if (this.isPlayerDead) return;
 
       // Pointer lock is toggled exclusively with the F key — clicks while unlocked do nothing
       if (!this.isPointerLocked) {
@@ -404,6 +410,7 @@ export class GameEngine {
     window.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('blur', onBlur);
     window.addEventListener('resize', onResize);
     window.addEventListener('contextmenu', onContextMenu);
 
@@ -443,9 +450,13 @@ export class GameEngine {
     document.body.dataset.state = 'playing';
     this.physics.pos.set(0, 0.1, -45);
     this.physics.vel.set(0, 0, 0);
+    this.physics.isSliding = false;
+    this.physics.isGrounded = true;
     this.yaw = Math.PI; // Face down yacht towards center
     this.pitch = 0;
     this.hp = 100;
+    this.isPlayerDead = false;
+    this.playerRespawnTimer = 0;
     this.score = 0;
     this.kills = 0;
     this.deaths = 0;
@@ -506,13 +517,14 @@ export class GameEngine {
   }
 
   private startReload() {
+    if (this.isPlayerDead) return;
     this.isReloading = true;
     this.reloadTimer = this.activeWeapon.reloadTimeSec;
     sound.playReload(this.activeWeapon.reloadTimeSec);
   }
 
   private tryFireWeapon() {
-    if (this.isReloading || this.fireTimer > 0) return;
+    if (this.isPlayerDead || this.isReloading || this.fireTimer > 0) return;
 
     if (this.ammo <= 0) {
       sound.playMechanicalClick(800, 0.05);
@@ -582,15 +594,18 @@ export class GameEngine {
 
     // A shot registers at most once; impact queued as a projectile with travel time.
     if (closestHitBot && !ctx.registered) {
-      ctx.registered = true;
       const { bot, isHead, point, dist } = closestHitBot;
-      const pelletCount = Math.max(1, this.activeWeapon.pellets || 1);
-      const damage = Math.max(1, Math.round(calculateShotDamage(this.activeWeapon, isHead, dist) * pelletCount));
-      const travelDelay = dist / this.activeWeapon.bulletSpeed;
+      const damage = calculateShotTotalDamage(this.activeWeapon, isHead, dist);
 
-      const pendingHit: PendingHit = { bot, isHead, damage, point, dist, delay: Math.max(travelDelay, 0.05) };
-      // Execute immediately for instantaneous projectile (named for clarity) but keep queue for consistency
-      this.pendingHits.push(pendingHit);
+      // Shotgun pellets beyond the cutoff are treated as a miss: no hitmarker,
+      // no damage, no kill credit. The tracer still shows where the shot landed.
+      if (damage > 0) {
+        ctx.registered = true;
+        const travelDelay = dist / this.activeWeapon.bulletSpeed;
+        const pendingHit: PendingHit = { bot, isHead, damage, point, dist, delay: Math.max(travelDelay, 0.05) };
+        // Execute immediately for instantaneous projectile (named for clarity) but keep queue for consistency
+        this.pendingHits.push(pendingHit);
+      }
     }
 
     if (!closestHitBot && !ctx.registered) {
@@ -684,6 +699,8 @@ export class GameEngine {
     }
 
     if (targetId === 'player') {
+      if (this.isPlayerDead) return;
+
       const toPlayer = new THREE.Vector3().subVectors(this.physics.pos, bot.pos);
       const dist = toPlayer.length();
       toPlayer.normalize();
@@ -699,28 +716,10 @@ export class GameEngine {
         sound.playHurt();
 
         if (this.hp <= 0) {
-          this.deaths++;
-          this.streak = 0;
-          this.hp = 100;
-
-          // Killfeed
-          this.callbacks.onKillfeed({
-            id: `kf_${Date.now()}_${Math.random()}`,
-            killer: bot.name,
-            victim: 'You',
-            weapon: bot.weapon.name,
-            isHeadshot: false,
-            isPlayerKiller: false,
-            isPlayerVictim: true,
-            timestamp: Date.now(),
-          });
-
-          // Respawn player at random spawn
-          const sp = this.mapData.spawnPoints[Math.floor(Math.random() * this.mapData.spawnPoints.length)];
-          this.physics.pos.copy(sp);
-          this.physics.vel.set(0, 0, 0);
+          this.killPlayer(bot.name, bot.weapon.name, false);
+        } else {
+          this.notifyStats(true);
         }
-        this.notifyStats(true);
       }
     } else {
       // Bot firing at another bot (FFA Bot-vs-Bot action!)
@@ -754,6 +753,64 @@ export class GameEngine {
         }
       }
     }
+  }
+
+  private killPlayer(killer: string, weaponName: string, isHeadshot: boolean) {
+    this.deaths++;
+    this.streak = 0;
+    this.hp = 0;
+    this.isPlayerDead = true;
+    this.playerRespawnTimer = PLAYER_RESPAWN_SECONDS;
+
+    // Freeze combat state while dead. Look-around stays enabled.
+    this.isAds = false;
+    this.adsWeight = 0;
+    this.isReloading = false;
+    this.reloadTimer = 0;
+    this.mouseButtonsHeld.clear();
+    this.keysHeld.clear();
+    this.physics.vel.set(0, 0, 0);
+    this.physics.isSliding = false;
+
+    this.callbacks.onKillfeed({
+      id: `kf_${Date.now()}_${Math.random()}`,
+      killer,
+      victim: 'You',
+      weapon: weaponName,
+      isHeadshot,
+      isPlayerKiller: false,
+      isPlayerVictim: true,
+      timestamp: Date.now(),
+    });
+
+    this.notifyStats(true);
+  }
+
+  private tickPlayerRespawn(dt: number) {
+    this.playerRespawnTimer -= dt;
+    if (this.playerRespawnTimer <= 0) {
+      this.respawnPlayer();
+    }
+  }
+
+  private respawnPlayer() {
+    const threats = this.bots.filter((b) => !b.isDead).map((b) => ({ pos: b.pos }));
+    const spawn = pickSafestSpawn(this.mapData.spawnPoints, threats) ?? this.mapData.spawnPoints[0];
+    if (spawn) this.physics.reset(spawn);
+
+    this.hp = this.maxHp;
+    this.isPlayerDead = false;
+    this.playerRespawnTimer = 0;
+    this.isAds = false;
+    this.adsWeight = 0;
+    this.isReloading = false;
+    this.reloadTimer = 0;
+    this.fireTimer = 0;
+    this.physics.isGrounded = true;
+    this.physics.isSliding = false;
+    this.keysHeld.clear();
+    this.mouseButtonsHeld.clear();
+    this.notifyStats(true);
   }
 
   private updatePlayerPhysics(dt: number) {
@@ -792,6 +849,7 @@ export class GameEngine {
         onOceanFall: () => {
           this.hp -= 35;
           sound.playHurt();
+          if (this.hp <= 0) this.killPlayer('The ocean', 'Fall', false);
         },
       }
     );
@@ -871,6 +929,7 @@ export class GameEngine {
       speed: Math.round(hSpeed),
       isSliding: this.physics.isSliding,
       isGrounded: this.physics.isGrounded,
+      respawnTimeRemaining: this.isPlayerDead ? Math.max(0, this.playerRespawnTimer) : 0,
     };
     if (!force && !statsChanged(this.lastStatsPayload, payload)) return;
     this.lastStatsPayload = payload;
@@ -946,8 +1005,12 @@ export class GameEngine {
           if (this.gunRig) this.gunRig.group.visible = false;
         } else {
           // Active Match Loop
-          if (this.gunRig) this.gunRig.group.visible = true;
-          this.updatePlayerPhysics(dt);
+          if (this.gunRig) this.gunRig.group.visible = !this.isPlayerDead;
+          if (this.isPlayerDead) {
+            this.tickPlayerRespawn(dt);
+          } else {
+            this.updatePlayerPhysics(dt);
+          }
           this.updateCameraAndWeapon(dt);
           this.effects.update(dt);
           this.updatePendingHits(dt);

@@ -1,0 +1,38 @@
+# Gameplay tuning: range, respawns, and gravity
+
+Status: accepted (2026-11-07)
+
+## Intent
+
+Finish the gameplay design that was deferred while the engine was split. The goal is a simpler, more predictable combat model and a real death penalty instead of instant respawns.
+
+## Goals
+
+- Remove range falloff from AR, SMG, and sniper damage.
+- Give shotguns a hard 20 m range instead of gradual falloff.
+- Make the player wait 10 seconds to respawn, matching bots.
+- Use 1:1 Earth gravity for players and bots, with jump velocities scaled to preserve a good arc.
+
+## Non-goals
+
+- Reserve ammo stays infinite; reloads remain clip-only.
+- Pointer-lock input is unchanged (CTRL+F toggle).
+- No changes to recoil, spread, bot accuracy, or map geometry.
+
+## Decisions
+
+**1A — Shotgun cutoff.** Pellets beyond 20 m are treated as a miss: no damage, no hitmarker, no kill credit, no floating number. The tracer still shows where the shot landed. This avoids the previous falloff curve, which made long-range shotgun hits feel inconsistent.
+
+**2A — Player respawn.** On death the player freezes movement and firing, keeps the camera where they died, and sees a dimmed `RESPAWNING IN N` overlay. Look-around stays enabled. Bots ignore the dead player. The respawn point is the map spawn farthest from the nearest live bot, so a respawn is not an instant second death.
+
+**3A — Gravity and jump.** Gravity is `-9.81` for players and bots. The player jump is `5.42 m/s`, giving a ~1.5 m apex and ~1.1 s airtime. The bot jump is `4.9 m/s`, preserving its previous ~1.2 m apex. The 1.5 m apex clears 1 m ledges without the floaty 2.1 m arc that a pure height-preserving scale would produce.
+
+## Bug fixed in the same pass
+
+`GameEngine` defined `onBlur` and removed it during cleanup but never registered it, so held keys and ADS could stick after the window lost focus. The listener is now registered.
+
+## Verification
+
+- Unit tests cover the shotgun cutoff (including the pellet-count edge case), full-damage long-range AR/SMG/sniper shots, the jump apex, and safe-spawn selection.
+- `tsc --noEmit`, the full node test suite, and the Vite production build all pass.
+- Browser smoke test: title screen and match start render with no console errors.

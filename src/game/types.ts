@@ -47,6 +47,8 @@ export interface PlayerStats {
   speed: number;
   isSliding: boolean;
   isGrounded: boolean;
+  /** Seconds until respawn; 0 while alive. */
+  respawnTimeRemaining: number;
 }
 
 export interface KillfeedEntry {

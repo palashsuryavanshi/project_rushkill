@@ -52,6 +52,10 @@ _Avoid_: crit, head hit
 Reducing a combatant's HP to zero.
 _Avoid_: elimination, frag, takedown
 
+**Shotgun cutoff**:
+The 20 m hard range of shotgun pellets. Inside it they deal full damage; beyond it they deal none.
+_Avoid_: falloff, damage drop-off
+
 **Streak**:
 Consecutive kills without dying. Drives score bonuses and streak banners.
 _Avoid_: combo
@@ -133,6 +137,10 @@ _Avoid_: game, round
 **Score limit**:
 The kills required to win a match outright.
 _Avoid_: target score, win score
+
+**Respawn**:
+Returning to play after a kill. The player and every bot wait ten seconds.
+_Avoid_: revive, rebirth
 
 **Title screen**:
 The pre-match presentation with the orbit camera around the yacht.

@@ -45,6 +45,22 @@ test('a buffered jump fires upward while Space is held', () => {
   assert.ok(body.vel.y > 0, 'jump should give upward velocity');
 });
 
+test('a jump reaches roughly a 1.5 m apex under Earth gravity', () => {
+  const body = new PlayerPhysics();
+  body.reset(new THREE.Vector3(0, 0, 0));
+  body.isGrounded = true;
+  body.queueJump();
+
+  const keys = new Set(['Space']);
+  let maxY = 0;
+  for (let i = 0; i < 240; i++) {
+    body.update(1 / 120, { keys, yaw: 0, isAds: false, colliders: [floor(0)] });
+    maxY = Math.max(maxY, body.pos.y);
+  }
+
+  assert.ok(maxY > 1.4 && maxY < 1.6, `expected ~1.5 m apex, got ${maxY.toFixed(3)} m`);
+});
+
 test('sliding starts when shift is held above the speed threshold', () => {
   const body = new PlayerPhysics();
   body.reset(new THREE.Vector3(0, 0, 0));

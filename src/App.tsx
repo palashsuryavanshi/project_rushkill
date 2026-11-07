@@ -60,6 +60,7 @@ const INITIAL_STATS: PlayerStats = {
   speed: 0,
   isSliding: false,
   isGrounded: true,
+  respawnTimeRemaining: 0,
 };
 
 export default function App() {

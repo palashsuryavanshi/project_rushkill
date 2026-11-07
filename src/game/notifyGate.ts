@@ -12,7 +12,8 @@ export function statsChanged(a: PlayerStats | null, b: PlayerStats): boolean {
     a.streak !== b.streak || a.highestStreak !== b.highestStreak ||
     a.headshots !== b.headshots || a.shotsFired !== b.shotsFired ||
     a.shotsHit !== b.shotsHit || a.speed !== b.speed ||
-    a.isSliding !== b.isSliding || a.isGrounded !== b.isGrounded
+    a.isSliding !== b.isSliding || a.isGrounded !== b.isGrounded ||
+    a.respawnTimeRemaining !== b.respawnTimeRemaining
   );
 }
 

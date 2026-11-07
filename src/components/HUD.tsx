@@ -72,6 +72,24 @@ export const HUD: React.FC<HUDProps> = ({
 
   return (
     <div className="fixed inset-0 pointer-events-none select-none z-30 overflow-hidden">
+      {/* 0. DEATH / RESPAWN OVERLAY */}
+      {stats.respawnTimeRemaining > 0 && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/65 backdrop-blur-[2px] pointer-events-none">
+          <div className="text-red-500 font-black text-5xl max-sm:text-3xl tracking-[0.2em] drop-shadow-[0_0_18px_rgba(239,68,68,0.6)]">
+            ELIMINATED
+          </div>
+          <div className="mt-4 font-mono text-white text-2xl max-sm:text-lg tracking-widest">
+            RESPAWNING IN{' '}
+            <span className="text-amber-400 font-black tabular-nums">
+              {Math.ceil(stats.respawnTimeRemaining)}
+            </span>
+          </div>
+          <div className="mt-2 text-slate-400 text-xs font-mono tracking-widest uppercase">
+            Stay sharp. The yacht is not done with you.
+          </div>
+        </div>
+      )}
+
       {/* 1. SNIPER SCOPE OVERLAY (When Aiming Down Sights with Sniper) */}
       {isSniperScoped && (
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">

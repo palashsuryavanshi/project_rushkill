@@ -23,7 +23,8 @@ export interface PlayerPhysicsEvents {
   onOceanFall?: () => void;
 }
 
-const GRAVITY = -9.81 * 2.65; // world-scale gravity (matches the pre-extraction engine)
+const GRAVITY = -9.81; // 1:1 Earth gravity
+const JUMP_VELOCITY = 5.42; // tuned for a ~1.5 m apex at Earth gravity
 const PLAYER_RADIUS = 0.45;
 const STEP_HEIGHT = 0.55;
 
@@ -118,7 +119,7 @@ export class PlayerPhysics {
     if (this.jumpBufferTimer > 0) this.jumpBufferTimer -= dt;
 
     if (this.jumpBufferTimer > 0 && (this.isGrounded || this.coyoteTimer > 0)) {
-      this.vel.y = 10.5;
+      this.vel.y = JUMP_VELOCITY;
       this.isGrounded = false;
       this.coyoteTimer = 0;
       this.jumpBufferTimer = 0;

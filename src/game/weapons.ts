@@ -386,26 +386,39 @@ export function getWeaponsByCategory(category: WeaponCategory): WeaponDef[] {
   return RUSH_WEAPONS.filter((w) => w.category === category);
 }
 
+/** Shotgun pellets do nothing beyond this range. */
+export const SHOTGUN_CUTOFF_METERS = 20;
+
 export function calculateShotDamage(
   weapon: WeaponDef,
   isHeadshot: boolean,
   distanceUnits: number
 ): number {
-  let baseDamage = weapon.damage;
-  // Falloff over extreme distances (Hijacked is ~120m long, normal range is 10-60m)
-  if (weapon.category === 'Shotgun') {
-    if (distanceUnits > 18) baseDamage *= 0.45;
-    else if (distanceUnits > 10) baseDamage *= 0.75;
-  } else if (weapon.category === 'SMG') {
-    if (distanceUnits > 35) baseDamage *= 0.65;
-  } else if (weapon.category === 'AR') {
-    if (distanceUnits > 60) baseDamage *= 0.8;
+  // Shotguns are the only ranged weapon with a hard range limit.
+  // Everything else keeps full damage across the whole yacht.
+  if (weapon.category === 'Shotgun' && distanceUnits > SHOTGUN_CUTOFF_METERS) {
+    return 0;
   }
-  // Snipers keep full damage across the whole yacht
 
+  let baseDamage = weapon.damage;
   if (isHeadshot) {
     baseDamage *= weapon.headshotMultiplier;
   }
 
   return Math.max(1, Math.round(baseDamage));
+}
+
+/**
+ * Total damage for one trigger pull. Shotguns apply their pellet count once;
+ * a zero from the range cutoff stays zero instead of being floored to 1.
+ */
+export function calculateShotTotalDamage(
+  weapon: WeaponDef,
+  isHeadshot: boolean,
+  distanceUnits: number
+): number {
+  const perPellet = calculateShotDamage(weapon, isHeadshot, distanceUnits);
+  if (perPellet <= 0) return 0;
+  const pellets = Math.max(1, weapon.pellets || 1);
+  return Math.round(perPellet * pellets);
 }
