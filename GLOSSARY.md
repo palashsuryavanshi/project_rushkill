@@ -5,7 +5,7 @@ A browser-only first-person shooter: one player fights AI bots aboard a yacht ma
 ## Map
 
 **Afterglow**:
-The current yacht arena: mirrored bow/stern cabins around an open central pool deck, with full-length walkways, upper firing rooms, and a below-deck service lane.
+The current yacht arena: mirrored bow/stern cabins around an open central pool deck, with full-length walkways and upper firing rooms.
 _Avoid_: Hijacked (that is the inspiration, not this map)
 
 ## Combat

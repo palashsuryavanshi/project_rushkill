@@ -244,12 +244,12 @@ export function buildHijackedMap(): MapData {
     sternDeck: { min: 36, max: 54 },
   } as const;
 
-  // Hollow hull shell: thin outer walls + bottom leave the service corridors open.
+  // Hull shell: thin outer walls and a visual bottom; the void under the deck is sealed.
   createSolidBox(0.3, 6.0, 108, -12.05, -6.4, 0, matDarkMetal);
   createSolidBox(0.3, 6.0, 108, 12.05, -6.4, 0, matDarkMetal);
   createSolidBox(24.4, 0.3, 108, 0, -6.7, 0, matDarkMetal, { noCollider: true });
 
-  // Deck undertray (tunnel ceiling): one continuous slab now the stairwells are gone.
+  // Deck undertray: one continuous slab sealing the underside of the deck.
   createSolidBox(21.8, 0.3, 108, 0, -0.7, 0, matDarkMetal);
 
   // Pointed Bow taper
@@ -406,7 +406,7 @@ export function buildHijackedMap(): MapData {
     }
   }
   // ==========================================
-  // 4. CENTRAL DECK - POOL, LOUNGE, PLANTER, STAIRWELLS
+  // 4. CENTRAL DECK - POOL, LOUNGE, PLANTER
   // ==========================================
   // Pool basin with teak curb (cover) and walk-through water.
   createSolidBox(0.4, 0.4, 14, -8.0, 0, 0, matTeakHighlight);

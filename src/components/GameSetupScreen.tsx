@@ -34,7 +34,7 @@ const MAP_OPTIONS: MapOption[] = [
     id: 'hijacked',
     name: 'Afterglow',
     subtitle: 'Sunset Charter Arena',
-    description: 'Twin-cabin superyacht split by an open pool deck, with full-length walkways, upper vantage rooms, and a below-deck service lane.',
+    description: 'Twin-cabin superyacht split by an open pool deck, with full-length walkways and upper vantage rooms.',
     isAvailable: true,
     tag: 'ACTIVE MAP',
   },
