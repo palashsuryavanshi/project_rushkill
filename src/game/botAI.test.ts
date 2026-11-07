@@ -105,3 +105,15 @@ test('normalizeAngleDiff handles shortest rotational arc', () => {
   const diffWrap = normalizeAngleDiff(Math.PI - 0.1, -Math.PI + 0.1);
   assert.ok(Math.abs(diffWrap) < 0.3, 'Should take short arc across boundary');
 });
+
+test('all bot personalities return SMG weapon (rival_9) for SMG-only implementation', () => {
+  const personalities: BotPersonality[] = ['assault', 'sniper', 'defender', 'flanker', 'support', 'balanced'];
+  
+  for (const personality of personalities) {
+    for (const index of [0, 1]) {
+      const weaponId = pickBotWeaponId(personality, index);
+      assert.equal(weaponId, 'rival_9', 
+        `Bot personality '${personality}' with index ${index} should return 'rival_9', but returned '${weaponId}'`);
+    }
+  }
+});

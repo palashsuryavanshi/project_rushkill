@@ -12,21 +12,8 @@ export type BotPersonality = 'assault' | 'sniper' | 'defender' | 'flanker' | 'su
  * the armory keeps exactly one weapon per class.
  */
 export function pickBotWeaponId(personality: BotPersonality, index: number): string {
-  switch (personality) {
-    case 'assault':
-      return index % 2 === 0 ? 'rival_9' : 'mcw';
-    case 'sniper':
-      return 'longbow';
-    case 'defender':
-      return 'mcw';
-    case 'flanker':
-      return index % 2 === 0 ? 'lockwood_680' : 'rival_9';
-    case 'support':
-      return 'lockwood_680';
-    case 'balanced':
-    default:
-      return 'mcw';
-  }
+  // Force all bots to use SMG weapons regardless of personality
+  return 'rival_9';
 }
 
 export type AwarenessState = 'unaware' | 'suspicious' | 'alert' | 'engaged' | 'searching' | 'recovering';
@@ -1083,22 +1070,44 @@ export function updateBotAI(
 
         bot.ammo--;
 
-        // Setup weapon-specific burst cycle
+        // Setup personality-based burst cycle (all bots use SMG now)
         if (bot.burstShotsRemaining <= 0) {
-          if (bot.weapon.category === 'AR') {
-            bot.burstShotsRemaining = 3 + Math.floor(Math.random() * 2); // 3-4 round burst
-          } else if (bot.weapon.category === 'SMG') {
+          if (bot.personality === 'assault') {
             bot.burstShotsRemaining = 4 + Math.floor(Math.random() * 3); // 4-6 round burst
+          } else if (bot.personality === 'defender') {
+            bot.burstShotsRemaining = 2 + Math.floor(Math.random() * 2); // 2-3 round burst
+          } else if (bot.personality === 'flanker') {
+            bot.burstShotsRemaining = 5 + Math.floor(Math.random() * 3); // 5-7 round burst
+          } else if (bot.personality === 'support') {
+            bot.burstShotsRemaining = 3 + Math.floor(Math.random() * 2); // 3-4 round burst
+          } else if (bot.personality === 'sniper') {
+            bot.burstShotsRemaining = 1; // Sniper uses single shots
           } else {
-            bot.burstShotsRemaining = 1; // Shotgun / Sniper
+            // balanced
+            bot.burstShotsRemaining = 4 + Math.floor(Math.random() * 2); // 4-5 round burst
           }
         }
 
         bot.burstShotsRemaining--;
 
         if (bot.burstShotsRemaining <= 0) {
-          // Pause between bursts
-          bot.burstPauseTimer = bot.weapon.category === 'Sniper' ? 1.4 : 0.35 + Math.random() * 0.25;
+          // Pause between bursts (increased to reduce lethality)
+          if (bot.personality === 'sniper') {
+            bot.burstPauseTimer = 1.4; // Sniper pause unchanged
+          } else {
+            // Increased pause timers for reduced fire rate
+            if (bot.personality === 'assault') {
+              bot.burstPauseTimer = 0.6 + Math.random() * 0.3; // 0.6-0.9s
+            } else if (bot.personality === 'defender') {
+              bot.burstPauseTimer = 0.7 + Math.random() * 0.3; // 0.7-1.0s
+            } else if (bot.personality === 'flanker') {
+              bot.burstPauseTimer = 0.5 + Math.random() * 0.3; // 0.5-0.8s
+            } else if (bot.personality === 'support') {
+              bot.burstPauseTimer = 0.7 + Math.random() * 0.3; // 0.7-1.0s
+            } else {
+              bot.burstPauseTimer = 0.6 + Math.random() * 0.3; // 0.6-0.9s (balanced)
+            }
+          }
         }
 
         // Fire rate interval
