@@ -1,7 +1,7 @@
 # Afterglow Yacht Redesign — Design
 
 **Date:** 2026-11-07
-**Status:** Awaiting approval
+**Status:** Approved
 **Scope:** Layout, palette, lighting, map-facing HUD, spawns, and bot waypoints
 
 ## Intent

@@ -2,6 +2,12 @@
 
 A browser-only first-person shooter: one player fights AI bots aboard a yacht map. This glossary fixes the gameplay vocabulary used across `src/game/`, the HUD, and design discussions.
 
+## Map
+
+**Afterglow**:
+The current yacht arena: mirrored bow/stern cabins around an open central pool deck, with full-length walkways, upper firing rooms, and a below-deck service lane.
+_Avoid_: Hijacked (that is the inspiration, not this map)
+
 ## Combat
 
 **Weapon**:
