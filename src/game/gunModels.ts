@@ -247,34 +247,37 @@ function buildWeaponGeometry(weapon: WeaponDef): WeaponGeometry {
       };
     }
     case 'SMG': {
-      addBox(b.body, 0.052, 0.075, 0.24, 0, 0, 0);
-      addBox(b.polymer, 0.038, 0.11, 0.05, 0, -0.075, 0.075, 0.35, 0, 0);
-      addBox(b.metal, 0.048, 0.05, 0.16, 0, 0.008, -0.2);
-      addBox(b.metal, 0.035, 0.05, 0.14, 0, 0.008, 0.18);
-      addBox(b.metal, 0.028, 0.01, 0.24, 0, 0.042, -0.05);
-      addBox(b.metal, 0.026, 0.008, 0.055, 0, -0.045, 0.03);
-      addCyl(b.metal, 0.012, 0.012, 0.16, 10, 0, 0.008, -0.3, 'z');
-      addCyl(b.accent, 0.018, 0.018, 0.05, 10, 0, 0.008, -0.42, 'z');
-      // Rear notch block.
-      addBox(b.metal, 0.006, 0.014, 0.01, -0.012, 0.075, -0.18);
-      addBox(b.metal, 0.006, 0.014, 0.01, 0.012, 0.075, -0.18);
-      // Hooded front post, centred on the sightFront anchor.
-      addTorus(b.metal, 0.014, 0.0035, 6, 12, 0, 0.075, -0.46);
-      addBox(b.metal, 0.005, 0.018, 0.005, 0, 0.075, -0.46);
-      addBox(mag, 0.036, 0.18, 0.05, 0, -0.1, -0.03, -0.12, 0, 0);
-      addBox(bolt, 0.025, 0.012, 0.05, -0.03, 0.02, 0.06);
+      // More compact SMG body with distinct proportions
+      addBox(b.body, 0.045, 0.065, 0.2, 0, 0, 0);
+      addBox(b.polymer, 0.035, 0.09, 0.04, 0, -0.065, 0.065, 0.3, 0, 0);
+      addBox(b.metal, 0.04, 0.045, 0.14, 0, 0.006, -0.18);
+      addBox(b.metal, 0.03, 0.045, 0.12, 0, 0.006, 0.16);
+      addBox(b.metal, 0.025, 0.008, 0.2, 0, 0.038, -0.04);
+      addBox(b.metal, 0.022, 0.006, 0.045, 0, -0.04, 0.025);
+      // SMG-specific features: shorter barrel, different grip angle
+      addCyl(b.metal, 0.01, 0.01, 0.14, 10, 0, 0.006, -0.26, 'z');
+      addCyl(b.accent, 0.016, 0.016, 0.04, 10, 0, 0.006, -0.36, 'z');
+      // Rear aperture (different from AR notch)
+      addTorus(b.metal, 0.012, 0.003, 6, 12, 0, 0.065, -0.16);
+      addBox(b.metal, 0.005, 0.012, 0.008, -0.01, 0.065, -0.16);
+      addBox(b.metal, 0.005, 0.012, 0.008, 0.01, 0.065, -0.16);
+      // Hooded front post with different proportions
+      addTorus(b.metal, 0.012, 0.003, 6, 12, 0, 0.065, -0.52);
+      addBox(b.metal, 0.004, 0.015, 0.004, 0, 0.065, -0.52);
+      addBox(mag, 0.032, 0.16, 0.045, 0, -0.085, -0.025, -0.1, 0, 0);
+      addBox(bolt, 0.022, 0.01, 0.045, -0.025, 0.018, 0.05);
       return {
         buckets: b,
         magazine: { geos: mag, material: accent },
         bolt: { geos: bolt, material: metal },
         pump: { geos: [], material: metal },
         lever: { geos: [], material: metal },
-        sightRear: [0, 0.075, -0.18],
-        sightFront: [0, 0.075, -0.46],
-        muzzle: [0, 0.008, -0.45],
-        gripLeft: [0, -0.03, -0.22],
-        gripRight: [0, -0.09, 0.075],
-        tipGlow: [0, 0.085, -0.46],
+        sightRear: [0, 0.065, -0.16],
+        sightFront: [0, 0.065, -0.52],
+        muzzle: [0, 0.006, -0.51],
+        gripLeft: [0, -0.025, -0.19],
+        gripRight: [0, -0.075, 0.065],
+        tipGlow: [0, 0.075, -0.52],
       };
     }
     case 'Shotgun': {
@@ -312,14 +315,16 @@ function buildWeaponGeometry(weapon: WeaponDef): WeaponGeometry {
       addBox(b.polymer, 0.04, 0.12, 0.05, 0, -0.08, 0.1, 0.3, 0, 0);
       addCyl(b.metal, 0.018, 0.022, 0.56, 10, 0, 0.02, -0.46, 'z');
       addBox(b.metal, 0.03, 0.008, 0.07, 0, -0.05, 0.14);
-      // Scope: tube, ocular, objective bell, mounts, tinted lens discs.
-      addCyl(b.metal, 0.022, 0.022, 0.5, 12, 0, 0.13, -0.5, 'z');
-      addCyl(b.metal, 0.024, 0.03, 0.07, 12, 0, 0.13, -0.27, 'z');
-      addCyl(b.metal, 0.032, 0.024, 0.08, 12, 0, 0.13, -0.73, 'z');
-      addBox(b.metal, 0.03, 0.05, 0.02, 0, 0.09, -0.62);
-      addBox(b.metal, 0.03, 0.05, 0.02, 0, 0.09, -0.38);
-      addCyl(b.optic, 0.02, 0.02, 0.004, 12, 0, 0.13, -0.75, 'z');
-      addCyl(b.optic, 0.02, 0.02, 0.004, 12, 0, 0.13, -0.25, 'z');
+      // Scope: main tube with ocular and objective bells
+      addCyl(b.metal, 0.02, 0.02, 0.45, 12, 0, 0.12, -0.48, 'z');
+      addCyl(b.metal, 0.022, 0.026, 0.06, 12, 0, 0.12, -0.26, 'z');
+      addCyl(b.metal, 0.028, 0.022, 0.07, 12, 0, 0.12, -0.7, 'z');
+      // Mounts
+      addBox(b.metal, 0.025, 0.04, 0.015, 0, 0.08, -0.6);
+      addBox(b.metal, 0.025, 0.04, 0.015, 0, 0.08, -0.36);
+      // Lens discs (simplified to avoid nested scope effect)
+      addCyl(b.optic, 0.018, 0.018, 0.003, 12, 0, 0.12, -0.72, 'z');
+      addCyl(b.optic, 0.018, 0.018, 0.003, 12, 0, 0.12, -0.24, 'z');
       addBox(b.accent, 0.05, 0.045, 0.1, 0, 0.02, -0.8);
       addBox(mag, 0.045, 0.13, 0.08, 0, -0.1, -0.02);
       addBox(bolt, 0.012, 0.03, 0.05, 0.045, 0.06, 0.02);

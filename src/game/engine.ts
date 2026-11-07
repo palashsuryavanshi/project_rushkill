@@ -648,7 +648,8 @@ export class GameEngine {
     // Movement / stance spread is already folded into `spreadRad` by computeShotSpread.
     applySpread(aimDir, spreadRad);
 
-    const rayOrigin = this.camera.position.clone();
+    // Use muzzle position as bullet origin for proper iron sight alignment
+    const rayOrigin = this.gunRig ? this.gunRig.muzzlePos.clone() : this.camera.position.clone();
 
     // Sniper rounds have no range ceiling; other guns stop at the map clip.
     const range = this.activeWeapon.category === 'Sniper' ? Infinity : RAY_FAR;
