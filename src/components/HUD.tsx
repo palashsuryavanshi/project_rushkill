@@ -126,10 +126,6 @@ export const HUD: React.FC<HUDProps> = ({
             <div className="absolute w-1.5 h-1.5 rounded-full bg-black/80 translate-y-8" />
             <div className="absolute w-1.5 h-1.5 rounded-full bg-black/80 -translate-x-8" />
             <div className="absolute w-1.5 h-1.5 rounded-full bg-black/80 translate-x-8" />
-
-            <div className="absolute bottom-6 font-mono text-[10px] tracking-widest text-emerald-400 font-bold bg-black/70 px-2 py-0.5 rounded">
-              SNIPER OPTIC
-            </div>
           </div>
         </div>
       )}

@@ -15,7 +15,7 @@ export const RUSH_WEAPONS: WeaponDef[] = [
     reloadTimeSec: 2.1,
     hipSpread: 0.045,
     adsSpread: 0.003,
-    adsZoomFov: 55,
+    adsZoomFov: 0, // ADS disabled for AR
     recoilVertical: 0.038,
     recoilHorizontal: 0.012,
     recoilRecoverySpeed: 10.0,
@@ -42,7 +42,7 @@ export const RUSH_WEAPONS: WeaponDef[] = [
     reloadTimeSec: 1.7,
     hipSpread: 0.038,
     adsSpread: 0.004,
-    adsZoomFov: 60,
+    adsZoomFov: 0, // ADS disabled for SMG
     recoilVertical: 0.035,
     recoilHorizontal: 0.025,
     recoilRecoverySpeed: 12.0,
@@ -70,7 +70,7 @@ export const RUSH_WEAPONS: WeaponDef[] = [
     reloadTimeSec: 2.5,
     hipSpread: 0.08,
     adsSpread: 0.045,
-    adsZoomFov: 60,
+    adsZoomFov: 0, // ADS disabled for Shotgun
     recoilVertical: 0.09,
     recoilHorizontal: 0.02,
     recoilRecoverySpeed: 6.0,
