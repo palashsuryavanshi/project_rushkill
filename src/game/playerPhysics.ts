@@ -200,9 +200,30 @@ export class PlayerPhysics {
       this.isGrounded = false;
     }
 
-    // 3. Resolve horizontal collisions against walls and obstacles
+    // 3. Clamp ascending motion against overhead boxes (low roofs, ceilings).
+    // Handled separately from walls so a jump under a roof stops vertically
+    // instead of being ejected sideways out of the box.
+    let ceilingY = Infinity;
+    for (const c of colliders) {
+      if (c.min.y <= this.pos.y + playerHeight * 0.5) continue; // not overhead
+      if (
+        nextPos.x + PLAYER_RADIUS > c.min.x &&
+        nextPos.x - PLAYER_RADIUS < c.max.x &&
+        nextPos.z + PLAYER_RADIUS > c.min.z &&
+        nextPos.z - PLAYER_RADIUS < c.max.z
+      ) {
+        if (c.min.y < ceilingY) ceilingY = c.min.y;
+      }
+    }
+    if (this.vel.y > 0 && nextPos.y + playerHeight > ceilingY) {
+      nextPos.y = ceilingY - playerHeight;
+      this.vel.y = 0;
+    }
+
+    // 4. Resolve horizontal collisions against walls and obstacles
     for (const c of colliders) {
       if (c.max.y <= nextPos.y + 0.08) continue; // ignore floors beneath feet
+      if (c.min.y >= nextPos.y + playerHeight - 0.01) continue; // ignore ceilings overhead
 
       if (nextPos.y < c.max.y && nextPos.y + playerHeight > c.min.y) {
         if (

@@ -95,6 +95,31 @@ test('sliding starts when shift is held above the speed threshold', () => {
   assert.equal(body.isSliding, true);
 });
 
+test('jumping under a low ceiling clamps instead of ejecting sideways', () => {
+  const body = new PlayerPhysics();
+  body.reset(new THREE.Vector3(0, 0, 0));
+  body.isGrounded = true;
+  body.queueJump();
+
+  const ceiling: BoxCollider = {
+    min: new THREE.Vector3(-2, 2.0, -2),
+    max: new THREE.Vector3(2, 2.4, 2),
+  };
+
+  for (let i = 0; i < 60; i++) {
+    body.update(1 / 120, {
+      keys: new Set(['Space']),
+      yaw: 0,
+      isAds: false,
+      colliders: [floor(0), ceiling],
+    });
+  }
+
+  assert.ok(body.pos.y <= 0.21, `expected y <= 0.21, got ${body.pos.y}`);
+  assert.ok(Math.abs(body.pos.x) < 1e-6, `x drifted to ${body.pos.x}`);
+  assert.ok(Math.abs(body.pos.z) < 1e-6, `z drifted to ${body.pos.z}`);
+});
+
 test('falling in the ocean reports damage and teleports back to the deck', () => {
   const body = new PlayerPhysics();
   body.reset(new THREE.Vector3(0, -4, 0));
