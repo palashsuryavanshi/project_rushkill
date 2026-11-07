@@ -88,11 +88,11 @@ export const RUSH_WEAPONS: WeaponDef[] = [
     id: 'longbow',
     name: 'Sniper',
     category: 'Sniper',
-    description: 'Precision bolt-action sniper rifle with high capacity 25-round magazine and lightning-fast handling for quick-scoping.',
+    description: 'Precision lever-action sniper rifle with a 7-round magazine and deliberate, hard-hitting cycle.',
     damage: 110,
     headshotMultiplier: 1.8,
-    fireRateRpm: 115,
-    magSize: 25,
+    fireRateRpm: 85, // lever throw ~0.7s
+    magSize: 7,
     reserveAmmo: Infinity,
     reloadTimeSec: 2.6,
     hipSpread: 0.12,
@@ -108,7 +108,7 @@ export const RUSH_WEAPONS: WeaponDef[] = [
       secondary: 0x353b45,
       accent: 0x485260,
     },
-    features: 'Quick-Scope Beast · 25-Rnd Mag',
+    features: 'Lever-Action Precision · 7-Rnd Mag',
   },
 ];
 

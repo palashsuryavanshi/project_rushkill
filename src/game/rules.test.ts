@@ -33,6 +33,12 @@ test('AR and SMG keep full damage at long range (no falloff)', () => {
   assert.equal(calculateShotDamage(smg, false, 120), smg.damage);
 });
 
+test('the sniper carries a 7-round magazine and a deliberate lever cycle', () => {
+  const sniper = getWeaponById('longbow');
+  assert.equal(sniper.magSize, 7);
+  assert.ok(60 / sniper.fireRateRpm > 0.65, 'the lever throw must leave a deliberate gap between shots');
+});
+
 test('sniper damage falls off 20% every 30 m and never runs out of range', () => {
   const sniper = RUSH_WEAPONS.find((w) => w.category === 'Sniper')!;
 
