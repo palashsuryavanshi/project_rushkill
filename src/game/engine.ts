@@ -7,6 +7,7 @@ import { buildGunModel, GunRig } from './gunModels';
 import { BotState, BotPersonality, createBot, updateBotAI, triggerBotHit } from './botAI';
 import { findClosestBotHit, applySpread, drainPendingHits, type PendingHit } from './combat';
 import { PlayerPhysics } from './playerPhysics';
+import { PointerLockController } from './pointerLock';
 import { evaluateKillScore, checkMatchEnd } from './rules';
 import { sound } from './audio';
 import { statsChanged, minimapChanged, LastMinimap } from './notifyGate';
@@ -26,7 +27,6 @@ export interface EngineCallbacks {
 
 export class GameEngine {
   private container: HTMLDivElement;
-  private lockTarget!: HTMLDivElement;
   private renderer: THREE.WebGLRenderer | null = null;
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
@@ -97,10 +97,12 @@ export class GameEngine {
   // Inputs
   private keysHeld = new Set<string>();
   private mouseButtonsHeld = new Set<number>();
-  public isPointerLocked: boolean = false;
-  private lastPointerLockExitTime: number = 0;
-  private lastLockAttemptTime: number = 0;
-  private pendingPointerLockTimeout: number | null = null;
+  private pointerLock: PointerLockController | null = null;
+
+  /** Public read-only view of the lock state (App/HUD never wrote this). */
+  public get isPointerLocked(): boolean {
+    return this.pointerLock?.isLocked ?? false;
+  }
 
   // Engine state
   public isRunning: boolean = true;
@@ -418,19 +420,6 @@ export class GameEngine {
       this.pitch = Math.max(-Math.PI / 2.05, Math.min(Math.PI / 2.05, this.pitch));
     };
 
-    const onPointerLockChange = () => {
-      this.isPointerLocked = !!this.renderer && (document.pointerLockElement === document.body);
-      if (!this.isPointerLocked) {
-        this.mouseButtonsHeld.clear();
-        this.lastPointerLockExitTime = Date.now();
-      }
-      this.callbacks.onPointerLockChange?.(this.isPointerLocked);
-    };
-
-    const onPointerLockError = () => {
-      // Swallows unhandled pointerlockerror during browser cooldown
-    };
-
     const onBlur = () => {
       this.keysHeld.clear();
       this.mouseButtonsHeld.clear();
@@ -453,17 +442,18 @@ export class GameEngine {
     window.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('pointerlockchange', onPointerLockChange);
-    document.addEventListener('pointerlockerror', onPointerLockError);
-    const onFocus = () => {
-      // Re-lock if the game is playing and the mouse was previously locked but exited (trackpad-friendly)
-      if (!this.isTitleScreen && !this.isPointerLocked && document.hasFocus()) {
-        this.requestPointerLock(true);
-      }
-    };
-    window.addEventListener('focus', onFocus);
     window.addEventListener('resize', onResize);
     window.addEventListener('contextmenu', onContextMenu);
+
+    // Pointer lock (including focus re-lock and browser cooldown) lives in its own module.
+    this.pointerLock = new PointerLockController({
+      isEnabled: () => !this.isTitleScreen && !!this.renderer,
+      onChange: (locked) => {
+        if (!locked) this.mouseButtonsHeld.clear();
+        this.callbacks.onPointerLockChange?.(locked);
+      },
+    });
+    this.pointerLock.attach();
 
     this.cleanupListeners = () => {
       window.removeEventListener('keydown', onKeyDown);
@@ -471,61 +461,18 @@ export class GameEngine {
       window.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mouseup', onMouseUp);
       window.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('pointerlockchange', onPointerLockChange);
-      document.removeEventListener('pointerlockerror', onPointerLockError);
       window.removeEventListener('blur', onBlur);
-      window.removeEventListener('focus', onFocus);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('contextmenu', onContextMenu);
     };
   }
 
   public requestPointerLock(isDirectUserGesture = false) {
-    if (this.isTitleScreen || !this.renderer) return;
-    if (document.pointerLockElement === document.body) {
-      this.isPointerLocked = true;
-      this.callbacks.onPointerLockChange?.(true);
-      return;
-    }
-
-    const elapsedSinceExit = Date.now() - this.lastPointerLockExitTime;
-    // Chromium imposes a lock cooldown (~1200ms) after exitPointerLock()
-    if (elapsedSinceExit < 1200 && !isDirectUserGesture) {
-      if (this.pendingPointerLockTimeout) {
-        clearTimeout(this.pendingPointerLockTimeout);
-      }
-      this.pendingPointerLockTimeout = window.setTimeout(() => {
-        this.requestPointerLock(true);
-      }, 1250 - elapsedSinceExit);
-      return;
-    }
-
-    try {
-      const el = document.body;
-      if (import.meta.env.DEV) console.warn('DEBUG POINTERLOCK el=', el && el.tagName, 'lockedElement=', document.pointerLockElement, 'active=', document.hasFocus(), 'canvasInDoc=', this.renderer?.domElement?.isConnected);
-      try { el.focus(); } catch {}
-      const res = el.requestPointerLock();
-      if (res && typeof (res as unknown as Promise<void>).catch === 'function') {
-        (res as unknown as Promise<void>).catch((err: unknown) => {
-          console.warn('Pointer lock request rejected:', String(err));
-        });
-      }
-    } catch (err) {
-      console.warn('Pointer lock request threw:', err);
-    }
+    this.pointerLock?.request(isDirectUserGesture);
   }
 
   public exitPointerLock() {
-    this.lastPointerLockExitTime = Date.now();
-    if (this.pendingPointerLockTimeout) {
-      clearTimeout(this.pendingPointerLockTimeout);
-      this.pendingPointerLockTimeout = null;
-    }
-    if (document.pointerLockElement) {
-      try {
-        document.exitPointerLock();
-      } catch {}
-    }
+    this.pointerLock?.exit();
   }
 
   public startMatch(config?: MatchConfig) {
@@ -1204,9 +1151,9 @@ export class GameEngine {
       cancelAnimationFrame(this.frameId);
       clearTimeout(this.frameId);
     }
-    if (this.pendingPointerLockTimeout) {
-      clearTimeout(this.pendingPointerLockTimeout);
-      this.pendingPointerLockTimeout = null;
+    if (this.pointerLock) {
+      this.pointerLock.dispose();
+      this.pointerLock = null;
     }
     if (this.cleanupListeners) {
       this.cleanupListeners();
