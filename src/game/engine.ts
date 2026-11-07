@@ -6,6 +6,7 @@ import { buildHijackedMap, MapData, BoxCollider } from './mapHijacked';
 import { buildGunModel, GunRig } from './gunModels';
 import { BotState, BotPersonality, createBot, updateBotAI, triggerBotHit } from './botAI';
 import { findClosestBotHit, applySpread, drainPendingHits, type PendingHit } from './combat';
+import { PlayerPhysics } from './playerPhysics';
 import { evaluateKillScore, checkMatchEnd } from './rules';
 import { sound } from './audio';
 import { statsChanged, minimapChanged, LastMinimap } from './notifyGate';
@@ -46,17 +47,11 @@ export class GameEngine {
   private gunRig: GunRig | null = null;
   private gunCameraRig: THREE.Group = new THREE.Group();
 
-  // Position & Physics
-  public playerPos = new THREE.Vector3(0, 0.1, -45);
-  public playerVel = new THREE.Vector3();
+  // Position & Physics (body state lives in PlayerPhysics; camera-only state stays here)
+  public readonly physics = new PlayerPhysics();
   private pitch: number = 0;
   private yaw: number = 0;
-  private isGrounded: boolean = true;
-  private isSliding: boolean = false;
   private currentCamHeight: number = 1.7;
-  private slideTimer: number = 0;
-  private coyoteTimer: number = 0;
-  private jumpBufferTimer: number = 0;
 
   // Gunplay State
   private ammo: number = 30;
@@ -69,7 +64,6 @@ export class GameEngine {
   private recoilPitch: number = 0;
   private recoilYaw: number = 0;
   private flashTimer: number = 0;
-  private gunBobTime: number = 0;
   // Single-registration pending-hit queue (projectile travel / delay)
   private pendingHits: PendingHit[] = [];
 
@@ -374,7 +368,7 @@ export class GameEngine {
 
       // Edge triggers
       if (e.code === 'Space') {
-        this.jumpBufferTimer = 0.14; // coyote/jump buffering
+        this.physics.queueJump(0.14); // coyote/jump buffering
       }
       if (e.code === 'KeyR' && !this.isReloading && this.ammo < this.activeWeapon.magSize && this.reserveAmmo > 0) {
         this.startReload();
@@ -538,8 +532,8 @@ export class GameEngine {
     this.applyGraphicsPreset(this.settings.graphicsPreset);
     this.isTitleScreen = false;
     document.body.dataset.state = 'playing';
-    this.playerPos.set(0, 0.1, -45);
-    this.playerVel.set(0, 0, 0);
+    this.physics.pos.set(0, 0.1, -45);
+    this.physics.vel.set(0, 0, 0);
     this.yaw = Math.PI; // Face down yacht towards center
     this.pitch = 0;
     this.hp = 100;
@@ -625,8 +619,8 @@ export class GameEngine {
     this.fireTimer = fireInterval;
 
     // Recoil kick (realistic recoil based on movement and stance)
-    const recoilMultiplier = this.isSliding ? 1.3 : 1.0;
-    const moveRecoil = this.playerVel.length() * 0.002; // movement-based recoil scaled to weapon class (≈0.024 at full sprint, not 1.2)
+    const recoilMultiplier = this.physics.isSliding ? 1.3 : 1.0;
+    const moveRecoil = this.physics.vel.length() * 0.002; // movement-based recoil scaled to weapon class (≈0.024 at full sprint, not 1.2)
     this.recoilPitch += (this.activeWeapon.recoilVertical + moveRecoil) * recoilMultiplier;
     this.recoilYaw += (Math.random() - 0.5) * this.activeWeapon.recoilHorizontal * recoilMultiplier;
 
@@ -654,8 +648,8 @@ export class GameEngine {
     aimDir.applyEuler(new THREE.Euler(this.pitch + this.recoilPitch, this.yaw + this.recoilYaw, 0, 'YXZ'));
 
     // Movement / stance spread
-    const movementSpread = this.playerVel.length() * 0.002;
-    const stanceSpread = this.isSliding ? 0.08 : 0.02;
+    const movementSpread = this.physics.vel.length() * 0.002;
+    const stanceSpread = this.physics.isSliding ? 0.08 : 0.02;
     applySpread(aimDir, spreadRad + movementSpread + stanceSpread);
 
     const rayOrigin = this.camera.position.clone();
@@ -752,7 +746,7 @@ export class GameEngine {
         isHeadshot: isHead,
         distance: dist,
         currentStreak: this.streak - 1,
-        isSliding: this.isSliding,
+        isSliding: this.physics.isSliding,
       });
 
       this.score += scoreRes.addedScore;
@@ -809,17 +803,17 @@ export class GameEngine {
     const muzzlePos = bot.pos.clone().add(new THREE.Vector3(0, 1.2, 0));
 
     // Audio sound for bot gunshot if within reasonable auditory distance
-    const distToPlayer = bot.pos.distanceTo(this.playerPos);
+    const distToPlayer = bot.pos.distanceTo(this.physics.pos);
     if (distToPlayer < 75) {
       sound.playGunshot(bot.weapon.soundType);
     }
 
     if (targetId === 'player') {
-      const toPlayer = new THREE.Vector3().subVectors(this.playerPos, bot.pos);
+      const toPlayer = new THREE.Vector3().subVectors(this.physics.pos, bot.pos);
       const dist = toPlayer.length();
       toPlayer.normalize();
 
-      const hitPos = this.playerPos.clone().add(new THREE.Vector3(0, 0.9, 0));
+      const hitPos = this.physics.pos.clone().add(new THREE.Vector3(0, 0.9, 0));
       this.spawnTracer(muzzlePos, hitPos);
 
       // Hit chance evaluated via alignment & distance
@@ -848,8 +842,8 @@ export class GameEngine {
 
           // Respawn player at random spawn
           const sp = this.mapData.spawnPoints[Math.floor(Math.random() * this.mapData.spawnPoints.length)];
-          this.playerPos.copy(sp);
-          this.playerVel.set(0, 0, 0);
+          this.physics.pos.copy(sp);
+          this.physics.vel.set(0, 0, 0);
         }
         this.notifyStats(true);
       }
@@ -908,191 +902,24 @@ export class GameEngine {
       }
     }
 
-    // Slide state handling (slide hopping mechanic!)
-    const isShiftHeld = this.keysHeld.has('ShiftLeft') || this.keysHeld.has('KeyC');
-    if (isShiftHeld && this.isGrounded && !this.isSliding && this.playerVel.lengthSq() > 16) {
-      this.isSliding = true;
-      this.slideTimer = 0.55;
-      sound.playSlide();
-      // Forward slide impulse
-      const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)).normalize();
-      this.playerVel.addScaledVector(fwd, 6.0);
-    }
-
-    if (this.isSliding) {
-      this.slideTimer -= dt;
-      if (this.slideTimer <= 0 || !isShiftHeld) {
-        this.isSliding = false;
+    this.physics.update(
+      dt,
+      {
+        keys: this.keysHeld,
+        yaw: this.yaw,
+        isAds: this.isAds,
+        colliders: this.mapData.colliders,
+      },
+      {
+        onJump: () => sound.playJump(),
+        onSlide: () => sound.playSlide(),
+        onFootstep: () => sound.playFootstep(),
+        onOceanFall: () => {
+          this.hp -= 35;
+          sound.playHurt();
+        },
       }
-    }
-
-    // Movement Intent
-    let moveX = 0;
-    let moveZ = 0;
-    if (this.keysHeld.has('KeyW') || this.keysHeld.has('ArrowUp')) moveZ -= 1;
-    if (this.keysHeld.has('KeyS') || this.keysHeld.has('ArrowDown')) moveZ += 1;
-    if (this.keysHeld.has('KeyA') || this.keysHeld.has('ArrowLeft')) moveX -= 1;
-    if (this.keysHeld.has('KeyD') || this.keysHeld.has('ArrowRight')) moveX += 1;
-
-    const inputDir = new THREE.Vector3(moveX, 0, moveZ);
-    if (inputDir.lengthSq() > 0) inputDir.normalize();
-
-    // Rotate input relative to camera yaw
-    const moveDir = inputDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-
-    // Rush Speed Tuning: High mobility, fast strafing, responsive bhop!
-    const baseSpeed = this.isAds ? 5.5 : 12.0;
-    const accel = this.isGrounded ? 80.0 : 35.0; // Air strafe control
-    const friction = this.isGrounded ? (this.isSliding ? 0.88 : 0.82) : 0.98; // More realistic sliding friction
-
-    if (inputDir.lengthSq() > 0 && !this.isSliding) {
-      this.playerVel.x += moveDir.x * accel * dt;
-      this.playerVel.z += moveDir.z * accel * dt;
-    }
-
-    // Apply friction
-    this.playerVel.x *= Math.pow(friction, dt * 60);
-    this.playerVel.z *= Math.pow(friction, dt * 60);
-
-    // Cap max horizontal speed
-    const maxSpeed = this.isSliding ? 18.0 : baseSpeed;
-    const hSpeed = Math.sqrt(this.playerVel.x * this.playerVel.x + this.playerVel.z * this.playerVel.z);
-    if (hSpeed > maxSpeed && this.isGrounded && !this.isSliding) {
-      this.playerVel.x = (this.playerVel.x / hSpeed) * maxSpeed;
-      this.playerVel.z = (this.playerVel.z / hSpeed) * maxSpeed;
-    }
-
-    // Gravity (realistic physics constant scaled for game world)
-    const gravity = -9.81 * 2.65; // Realistic gravity scaled for game world
-    this.playerVel.y += gravity * dt;
-
-    // Coyote & Jump Buffering
-    if (this.isGrounded) this.coyoteTimer = 0.1;
-    else this.coyoteTimer -= dt;
-
-    if (this.jumpBufferTimer > 0) this.jumpBufferTimer -= dt;
-
-    if (this.jumpBufferTimer > 0 && (this.isGrounded || this.coyoteTimer > 0)) {
-      this.playerVel.y = 10.5; // High snappy rush jump
-      this.isGrounded = false;
-      this.coyoteTimer = 0;
-      this.jumpBufferTimer = 0;
-      sound.playJump();
-
-      // Bunny-hop boost if timed right during a slide (reduced exploit potential)
-      if (this.isSliding) {
-        const boostFactor = 1.1; // Reduced, more realistic boost
-        const momentumConservation = 0.8;
-        this.playerVel.x = (this.playerVel.x * momentumConservation) + (this.playerVel.x * boostFactor);
-        this.playerVel.z = (this.playerVel.z * momentumConservation) + (this.playerVel.z * boostFactor);
-        this.isSliding = false;
-      }
-    }
-
-    // Variable jump cut (early release)
-    if (!this.keysHeld.has('Space') && this.playerVel.y > 0) {
-      this.playerVel.y *= Math.pow(0.5, dt * 60);
-    }
-
-    // Tentative new position
-    const nextPos = this.playerPos.clone().addScaledVector(this.playerVel, dt);
-
-    // Collision Resolution against Map Colliders
-    this.resolveCollisions(nextPos);
-
-    // Footsteps sound loop
-    if (this.isGrounded && hSpeed > 3.0 && !this.isSliding) {
-      this.gunBobTime += dt * hSpeed * 1.4;
-      if (Math.sin(this.gunBobTime * 2) > 0.95 && Math.random() < 0.25) {
-        sound.playFootstep();
-      }
-    }
-
-    // Fall in ocean check
-    if (this.playerPos.y < -3.5) {
-      this.hp -= 35;
-      sound.playHurt();
-      // Teleport back to nearest deck spawn
-      this.playerPos.set(0, 0.1, -40);
-      this.playerVel.set(0, 0, 0);
-    }
-  }
-
-  private resolveCollisions(nextPos: THREE.Vector3) {
-    const playerRadius = 0.45;
-    const playerHeight = this.isSliding ? 1.0 : 1.8;
-    const stepHeight = 0.55;
-
-    // 1. Detect walkable ground beneath player's horizontal footprint
-    let highestGroundY = -999;
-
-    for (const c of this.mapData.colliders) {
-      if (
-        nextPos.x + playerRadius > c.min.x &&
-        nextPos.x - playerRadius < c.max.x &&
-        nextPos.z + playerRadius > c.min.z &&
-        nextPos.z - playerRadius < c.max.z
-      ) {
-        // Can be stood upon if top of collider is within walkable step height and above minimum
-        if (c.max.y <= this.playerPos.y + stepHeight && nextPos.y >= c.min.y - 0.25) {
-          if (c.max.y > highestGroundY) {
-            highestGroundY = c.max.y;
-          }
-        }
-      }
-    }
-
-    // 2. Snap to floor if within landing contact distance and not ascending from a jump
-    if (highestGroundY > -900 && (nextPos.y <= highestGroundY + 0.15 || this.playerPos.y <= highestGroundY + 0.05)) {
-      if (this.playerVel.y <= 0) {
-        nextPos.y = highestGroundY;
-        this.playerVel.y = 0;
-        this.isGrounded = true;
-      } else {
-        this.isGrounded = false;
-      }
-    } else {
-      this.isGrounded = false;
-    }
-
-    // 3. Resolve horizontal collisions against walls and obstacles (taller than feet + stepHeight)
-    for (const c of this.mapData.colliders) {
-      // Ignore floors beneath feet
-      if (c.max.y <= nextPos.y + 0.08) continue;
-
-      // Vertical overlap check
-      if (nextPos.y < c.max.y && nextPos.y + playerHeight > c.min.y) {
-        // Horizontal overlap check
-        if (
-          nextPos.x + playerRadius > c.min.x &&
-          nextPos.x - playerRadius < c.max.x &&
-          nextPos.z + playerRadius > c.min.z &&
-          nextPos.z - playerRadius < c.max.z
-        ) {
-          const pushX1 = c.max.x - (nextPos.x - playerRadius);
-          const pushX2 = (nextPos.x + playerRadius) - c.min.x;
-          const pushZ1 = c.max.z - (nextPos.z - playerRadius);
-          const pushZ2 = (nextPos.z + playerRadius) - c.min.z;
-          const minPush = Math.min(pushX1, pushX2, pushZ1, pushZ2);
-
-          if (minPush === pushX1) {
-            nextPos.x = c.max.x + playerRadius;
-            if (this.playerVel.x < 0) this.playerVel.x = 0;
-          } else if (minPush === pushX2) {
-            nextPos.x = c.min.x - playerRadius;
-            if (this.playerVel.x > 0) this.playerVel.x = 0;
-          } else if (minPush === pushZ1) {
-            nextPos.z = c.max.z + playerRadius;
-            if (this.playerVel.z < 0) this.playerVel.z = 0;
-          } else if (minPush === pushZ2) {
-            nextPos.z = c.min.z - playerRadius;
-            if (this.playerVel.z > 0) this.playerVel.z = 0;
-          }
-        }
-      }
-    }
-
-    this.playerPos.copy(nextPos);
+    );
   }
 
   private updateCameraAndWeapon(dt: number) {
@@ -1101,11 +928,11 @@ export class GameEngine {
     this.recoilYaw = THREE.MathUtils.damp(this.recoilYaw, 0, this.activeWeapon.recoilRecoverySpeed, dt);
 
     // Camera height with smooth damping for sliding/standing transitions
-    const targetCamHeight = this.isSliding ? 0.85 : 1.7;
+    const targetCamHeight = this.physics.isSliding ? 0.85 : 1.7;
     this.currentCamHeight = THREE.MathUtils.damp(this.currentCamHeight, targetCamHeight, 18.0, dt);
-    const currentCamY = this.playerPos.y + this.currentCamHeight;
+    const currentCamY = this.physics.pos.y + this.currentCamHeight;
 
-    this.camera.position.set(this.playerPos.x, currentCamY, this.playerPos.z);
+    this.camera.position.set(this.physics.pos.x, currentCamY, this.physics.pos.z);
     this.camera.rotation.set(this.pitch + this.recoilPitch, this.yaw + this.recoilYaw, 0, 'YXZ');
 
     // Smooth ADS zoom FOV
@@ -1118,9 +945,9 @@ export class GameEngine {
 
     if (this.gunRig) {
       // Weapon Bobbing
-      const hSpeed = Math.sqrt(this.playerVel.x * this.playerVel.x + this.playerVel.z * this.playerVel.z);
-      const bobX = Math.cos(this.gunBobTime) * 0.015 * (1 - this.adsWeight);
-      const bobY = Math.sin(this.gunBobTime * 2) * 0.012 * (1 - this.adsWeight);
+      const hSpeed = Math.sqrt(this.physics.vel.x * this.physics.vel.x + this.physics.vel.z * this.physics.vel.z);
+      const bobX = Math.cos(this.physics.gunBobTime) * 0.015 * (1 - this.adsWeight);
+      const bobY = Math.sin(this.physics.gunBobTime * 2) * 0.012 * (1 - this.adsWeight);
 
       // Hip position: slightly to right & lower
       const hipPos = new THREE.Vector3(0.22 + bobX, -0.22 + bobY, -0.42);
@@ -1195,7 +1022,7 @@ export class GameEngine {
   }
 
   private notifyStats(force: boolean = false) {
-    const hSpeed = Math.sqrt(this.playerVel.x * this.playerVel.x + this.playerVel.z * this.playerVel.z);
+    const hSpeed = Math.sqrt(this.physics.vel.x * this.physics.vel.x + this.physics.vel.z * this.physics.vel.z);
     const reloadProgress = this.isReloading ? Math.max(0, 1 - this.reloadTimer / this.activeWeapon.reloadTimeSec) : 1;
     const payload: PlayerStats = {
       hp: Math.max(0, this.hp),
@@ -1214,8 +1041,8 @@ export class GameEngine {
       shotsFired: this.shotsFired,
       shotsHit: this.shotsHit,
       speed: Math.round(hSpeed),
-      isSliding: this.isSliding,
-      isGrounded: this.isGrounded,
+      isSliding: this.physics.isSliding,
+      isGrounded: this.physics.isGrounded,
     };
     if (!force && !statsChanged(this.lastStatsPayload, payload)) return;
     this.lastStatsPayload = payload;
@@ -1225,7 +1052,7 @@ export class GameEngine {
   private notifyMinimap() {
     // throttle: at most one emission every >= 0.1s
     if (this.minimapAccum < 0.1) return;
-    const x = this.playerPos.x, z = this.playerPos.z, angle = this.yaw;
+    const x = this.physics.pos.x, z = this.physics.pos.z, angle = this.yaw;
     if (!minimapChanged(this.lastMinimapSample, x, z, angle)) return;
     const bots = this.bots.map((b) => ({ id: b.id, x: b.pos.x, z: b.pos.z, isDead: b.isDead }));
     this.lastMinimapSample = { x, z, angle };
@@ -1299,7 +1126,7 @@ export class GameEngine {
 
           // Update Bots AI with Perception, LOS colliders, and Bot vs Bot targets
           const potentialTargets = [
-            { id: 'player', isPlayer: true, pos: this.playerPos, hp: this.hp },
+            { id: 'player', isPlayer: true, pos: this.physics.pos, hp: this.hp },
             ...this.bots.filter((b) => !b.isDead).map((b) => ({ id: b.id, isPlayer: false, pos: b.pos, hp: b.hp })),
           ];
 
