@@ -202,7 +202,7 @@ export class GameEngine {
         antialias: true,
         powerPreference: 'high-performance',
         alpha: false,
-        logarithmicDepthBuffer: false,
+        logarithmicDepthBuffer: true,
       });
     } catch (primaryErr) {
       console.warn('Primary WebGLRenderer init failed, trying safe fallback:', primaryErr);
@@ -306,7 +306,7 @@ export class GameEngine {
     this.camera = new THREE.PerspectiveCamera(
       this.settings.fov,
       this.container.clientWidth / this.container.clientHeight,
-      0.15,
+      0.3,
       450
     );
     this.camera.rotation.order = 'YXZ';
@@ -329,8 +329,8 @@ export class GameEngine {
     this.sunLight = sunLight;
     sunLight.position.set(38, 30, 58);
     sunLight.castShadow = !this.isSoftwareGl && this.graphicsTierApplied === 'high';
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.mapSize.width = 1024;
+    sunLight.shadow.mapSize.height = 1024;
     sunLight.shadow.bias = -0.00005;
     sunLight.shadow.normalBias = 0.03;
     sunLight.shadow.camera.left = -85;
@@ -414,7 +414,8 @@ export class GameEngine {
     this.multiplayerEngine = multiplayerEngine;
     this.networkManager = networkManager;
     
-    // Attach game engine to multiplayer engine
+    // Attach network + game engine to multiplayer engine (both required by startMultiplayer)
+    multiplayerEngine.attachNetworkManager(networkManager);
     multiplayerEngine.attachGameEngine({
       update: (delta: number) => this.update(delta),
       getPlayerState: () => ({
@@ -435,7 +436,7 @@ export class GameEngine {
     });
   }
 
-  public startMultiplayer(room: string, isHost: boolean, name: string): Promise<void> {
+  public startMultiplayer(room: string, isHost: boolean, name: string, serverUrl?: string): Promise<void> {
     if (!this.multiplayerEngine || !this.networkManager) {
       throw new Error('Multiplayer system not attached');
     }
@@ -452,10 +453,47 @@ export class GameEngine {
       this.bots = [];
     }
     
-    return this.multiplayerEngine.startMultiplayer(room, isHost, name);
+    return this.multiplayerEngine.startMultiplayer(room, isHost, name, serverUrl);
+  }
+
+  private remotePlayerMeshes: Map<string, THREE.Group> = new Map();
+
+  public spawnRemotePlayer(id: string, name: string, pos: [number, number, number]): void {
+    if (this.remotePlayerMeshes.has(id)) return;
+    if (this.isTitleScreen) return;
+    const group = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.6, metalness: 0.2 });
+    const cap = new THREE.CapsuleGeometry(0.35, 1.1, 8, 12);
+    const mesh = new THREE.Mesh(cap, mat);
+    mesh.position.y = 0.9;
+    mesh.castShadow = true;
+    group.add(mesh);
+    group.position.set(pos[0], pos[1], pos[2]);
+    this.scene.add(group);
+    this.remotePlayerMeshes.set(id, group);
+  }
+
+  public updateRemotePlayer(id: string, pos: [number, number, number], rot: [number, number]): void {
+    const group = this.remotePlayerMeshes.get(id);
+    if (!group) return;
+    group.position.set(pos[0], pos[1], pos[2]);
+    group.rotation.y = rot[1] + Math.PI; // face forward
+  }
+
+  public removeRemotePlayer(id: string): void {
+    const group = this.remotePlayerMeshes.get(id);
+    if (!group) return;
+    this.scene.remove(group);
+    this.remotePlayerMeshes.delete(id);
+  }
+
+  public clearRemotePlayers(): void {
+    for (const g of this.remotePlayerMeshes.values()) this.scene.remove(g);
+    this.remotePlayerMeshes.clear();
   }
 
   public stopMultiplayer(): void {
+    this.clearRemotePlayers();
     if (this.multiplayerEngine) {
       this.multiplayerEngine.disconnect();
       this.multiplayerEngine = null;
@@ -634,28 +672,17 @@ export class GameEngine {
         'support',
         'balanced',
       ];
-      const botCount = Math.max(1, Math.min(10, config.botCount || 6));
-      const difficulty: BotDifficulty = config.botDifficulty || 'regular';
+       const botCount = this.isMultiplayer ? 0 : Math.max(0, Math.min(10, config.botCount ?? 6));
+       const difficulty: BotDifficulty = config.botDifficulty || 'regular';
 
-      for (let idx = 0; idx < botCount; idx++) {
-        let pers = personalities[idx % personalities.length];
-        if (config.allowedCategories && config.allowedCategories.length > 0) {
-          if (!config.allowedCategories.includes('AR') && (pers === 'defender' || pers === 'balanced')) pers = 'assault';
-          if (!config.allowedCategories.includes('SMG') && pers === 'assault') pers = 'balanced';
-          if (!config.allowedCategories.includes('Shotgun') && pers === 'flanker') pers = 'assault';
-          if (!config.allowedCategories.includes('Sniper') && pers === 'sniper') pers = 'balanced';
-        }
-        const spawnPos = this.mapData.spawnPoints[(idx + 1) % this.mapData.spawnPoints.length];
-        const bot = createBot(`bot_${idx}`, idx, pers, difficulty, spawnPos, this.mapData.waypoints);
-        if (config.allowedCategories && config.allowedCategories.length > 0 && !config.allowedCategories.includes(bot.weapon.category)) {
-          const allowedGuns = RUSH_WEAPONS.filter((w) => config.allowedCategories.includes(w.category));
-          if (allowedGuns.length > 0) {
-            bot.weapon = allowedGuns[idx % allowedGuns.length];
-          }
-        }
-        this.bots.push(bot);
-        this.scene.add(bot.mesh);
-      }
+       for (let idx = 0; idx < botCount; idx++) {
+         const pers = personalities[idx % personalities.length];
+         const spawnPos = this.mapData.spawnPoints[(idx + 1) % this.mapData.spawnPoints.length];
+         const bot = createBot(`bot_${idx}`, idx, pers, difficulty, spawnPos, this.mapData.waypoints);
+         bot.weapon = getWeaponById('rival_9');
+         this.bots.push(bot);
+         this.scene.add(bot.mesh);
+       }
     } else {
       this.scoreLimit = 25;
       this.matchTimeRemaining = 300;
@@ -1219,6 +1246,14 @@ export class GameEngine {
     // Update viewmodel pose and animation
     this.updateViewmodel(dt);
 
+    // Hide ENTIRE viewmodel (incl. solid scope tube) when scoped — 2D HUD overlay takes over
+    const scoped = this.activeWeapon.category === 'Sniper' && this.isAds;
+    if (this.gunRig) {
+      this.gunRig.group.visible = !scoped && !this.isPlayerDead;
+    }
+    // Ensure no stray geometry (hands/lights) shows through via the camera rig
+    this.gunCameraRig.visible = !scoped;
+
     // Muzzle flash decay
     if (this.flashTimer > 0) {
       this.flashTimer -= dt;
@@ -1353,9 +1388,10 @@ export class GameEngine {
           this.camera.position.set(Math.cos(camAngle) * camR, camY, Math.sin(camAngle) * camR);
           this.camera.lookAt(0, 4, 0);
           if (this.gunRig) this.gunRig.group.visible = false;
+          this.gunCameraRig.visible = false;
         } else {
-          // Active Match Loop
-          if (this.gunRig) this.gunRig.group.visible = !this.isPlayerDead;
+          // Active Match Loop — visibility decided centrally in updateCameraAndWeapon
+          // (scope + dead checks) to avoid flicker/double-write
           if (this.isPlayerDead) {
             this.tickPlayerRespawn(dt);
           } else {

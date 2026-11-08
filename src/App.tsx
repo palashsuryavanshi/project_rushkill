@@ -292,10 +292,14 @@ export default function App() {
     setMultiplayerScreen('menu');
   }, []);
 
-  // Multiplayer actions
+  // Multiplayer actions — single entry from MainMenu, HUD, and PauseModal
   const handleOpenMultiplayer = useCallback(() => {
+    if (!multiplayerEngine || !networkManager) return;
+    setIsMultiplayer(true);
     setMultiplayerScreen('menu');
-  }, []);
+  }, [multiplayerEngine, networkManager]);
+
+  const handleOpenMultiplayerFromPause = handleOpenMultiplayer;
 
   const handleStartMultiplayer = useCallback(async (room: string, isHost: boolean, name: string) => {
     if (!engineRef.current || !multiplayerEngine || !networkManager) return;
@@ -321,10 +325,10 @@ export default function App() {
 
   const handleStartMultiplayerGame = useCallback(() => {
     if (!engineRef.current) return;
-    engineRef.current.startMatch(DEFAULT_MATCH_CONFIG);
+    engineRef.current.startMatch(matchConfig);
     setMultiplayerScreen('game');
     setGameState('playing');
-  }, []);
+  }, [matchConfig]);
 
   const handleUpdateSettings = useCallback((newSettings: GameSettings) => {
     setSettings(newSettings);
@@ -339,8 +343,8 @@ export default function App() {
       {/* Isolated Three.js WebGL Mount Container */}
       <div ref={mountRef} className="absolute inset-0 w-full h-full z-0" />
 
-      {/* Menu Screens when in 'title' state */}
-      {gameState === 'title' && (
+      {/* Menu Screens when in 'title' state (hidden while MultiplayerUI overlay is up) */}
+      {gameState === 'title' && !isMultiplayer && (
         <>
           {menuScreen === 'main' && (
             <MainMenu
@@ -349,6 +353,7 @@ export default function App() {
               onOpenSetup={() => setMenuScreen('setup')}
               onOpenLoadout={() => setMenuScreen('loadout')}
               onOpenSettings={() => setGameState('paused')}
+              onOpenMultiplayer={handleOpenMultiplayer}
             />
           )}
 
@@ -441,6 +446,8 @@ export default function App() {
           onResume={handleResume}
           onRestart={handleRestart}
           onReturnTitle={handleReturnTitle}
+          onOpenMultiplayer={handleOpenMultiplayerFromPause}
+          isMultiplayer={isMultiplayer}
         />
       )}
 
@@ -453,6 +460,8 @@ export default function App() {
             handleLeaveMultiplayer();
           }}
           onStartGame={handleStartMultiplayerGame}
+          matchConfig={matchConfig}
+          onUpdateMatchConfig={(cfg: MatchConfig) => setMatchConfig(cfg)}
         />
       )}
 

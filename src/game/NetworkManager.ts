@@ -25,7 +25,7 @@ import {
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_BASE_DELAY_MS = 1000; // 1s, 2s, 4s...
 const PING_INTERVAL_MS = 10000; // 10 seconds
-const SERVER_URL = 'wss://rushkill-relay.fly.dev';
+// Server URL will be set dynamically when connecting
 
 /** Callback type for state updates */
 export type StateCallback = (state: StateMessage) => void;
@@ -108,9 +108,10 @@ export class NetworkManager {
    * @param room - Room code to join
    * @param isHost - Whether this client should be the host
    * @param name - Player name (1-32 chars)
+   * @param serverUrl - WebSocket server URL (defaults to production relay)
    * @returns Promise that resolves when connection is established and join is confirmed
    */
-  public async connect(room: string, isHost: boolean, name: string): Promise<void> {
+  public async connect(room: string, isHost: boolean, name: string, serverUrl?: string): Promise<void> {
     if (this.isConnected) {
       await this.disconnect();
     }
@@ -129,7 +130,7 @@ export class NetworkManager {
 
     return new Promise((resolve, reject) => {
       try {
-        const url = `${SERVER_URL}?room=${encodeURIComponent(room)}`;
+        const url = `${serverUrl || 'wss://rushkill-relay.fly.dev'}?room=${encodeURIComponent(room)}`;
         this.ws = new WebSocket(url);
 
         this.ws.onopen = () => {
@@ -166,13 +167,16 @@ export class NetworkManager {
         // Store original handleMessage to restore after joined
         const originalHandleMessage = this.handleMessage.bind(this);
 
-        // We'll resolve when we receive the joined message
+        // We'll resolve when we receive the self-joined confirmation
         const checkJoined = (msg: Message) => {
           if (msg.type === 'joined') {
-            this.assignedId = msg.id;
-            // Restore original handleMessage after joined is received
-            this.handleMessage = originalHandleMessage;
-            resolve();
+            const jm = msg as JoinedMessage;
+            if (jm.self === true) {
+              this.assignedId = jm.id;
+              // Restore original handleMessage after joined is received
+              this.handleMessage = originalHandleMessage;
+              resolve();
+            }
           }
         };
 
@@ -218,10 +222,7 @@ export class NetworkManager {
    * @param state - State message to broadcast
    */
   public broadcastState(state: StateMessage): void {
-    if (!this.isHostFlag) {
-      console.warn('[NetworkManager] broadcastState called but client is not host');
-      return;
-    }
+    // Relay supports per-client broadcasts; allow every participant to sync own state.
     this.send(state);
   }
 

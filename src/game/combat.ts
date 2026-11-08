@@ -119,15 +119,15 @@ export function findClosestBotHit(
       origin,
       dir,
       new THREE.Vector3(px - 0.6, py + 0.05, pz - 0.5),
-      new THREE.Vector3(px + 0.6, py + 1.65, pz + 0.5),
+      new THREE.Vector3(px + 0.6, py + 1.4, pz + 0.5),
       RAY_NEAR,
       maxRange
     );
     const headHit = rayBox(
       origin,
       dir,
-      new THREE.Vector3(px - 0.45, py + 1.5, pz - 0.45),
-      new THREE.Vector3(px + 0.45, py + 2.3, pz + 0.45),
+      new THREE.Vector3(px - 0.4, py + 1.4, pz - 0.4),
+      new THREE.Vector3(px + 0.4, py + 2.1, pz + 0.4),
       RAY_NEAR,
       maxRange
     );

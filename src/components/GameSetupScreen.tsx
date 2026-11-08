@@ -388,7 +388,7 @@ export const GameSetupScreen: React.FC<GameSetupScreenProps> = ({
               </div>
 
               <div className="grid grid-cols-5 gap-1.5">
-                {[2, 4, 6, 8, 10].map((num) => (
+                {[0, 2, 4, 6, 8, 10].map((num) => (
                   <button
                     key={num}
                     onClick={() => {

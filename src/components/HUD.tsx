@@ -85,6 +85,7 @@ export const HUD: React.FC<HUDProps> = ({
   };
 
   const isSniperScoped = weapon.category === 'Sniper' && stats.isAds;
+  const isShotgun = weapon.category === 'Shotgun';
   const playerMapPos = minimapData
     ? projectToMap(minimapData.playerPos.x, minimapData.playerPos.z)
     : null;
@@ -138,7 +139,21 @@ export const HUD: React.FC<HUDProps> = ({
       {!isSniperScoped && (
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
           {/* Dynamic Crosshair Spread based on speed and ADS */}
-          {!stats.isAds && (
+          {!stats.isAds && isShotgun ? (
+            // CoD-style shotgun crosshair: 4 spread ticks rotated 45° + tight center dot
+            <div className="relative w-16 h-16 flex items-center justify-center">
+              {[0, 90, 180, 270].map((ang) => (
+                <div
+                  key={ang}
+                  className="absolute w-[3px] h-[11px] bg-amber-300 shadow-[0_0_0_1px_rgba(0,0,0,0.95),0_0_5px_rgba(253,224,71,0.7)]"
+                  style={{
+                    transform: `rotate(${ang}deg) translateX(20px)`,
+                  }}
+                />
+              ))}
+              <div className="w-[4px] h-[4px] rounded-full bg-amber-200 shadow-[0_0_0_1px_rgba(0,0,0,0.95),0_0_6px_rgba(253,224,71,0.9)]" />
+            </div>
+          ) : !stats.isAds ? (
             <div className="relative w-8 h-8 flex items-center justify-center">
               <div
                 className="absolute w-[2px] h-[9px] bg-yellow-300 shadow-[0_0_0_1px_rgba(0,0,0,0.95),0_0_5px_rgba(253,224,71,0.55)]"
@@ -167,7 +182,7 @@ export const HUD: React.FC<HUDProps> = ({
               {/* Center Dot */}
               <div className="w-[4px] h-[4px] rounded-full bg-yellow-300 shadow-[0_0_0_1px_rgba(0,0,0,0.95),0_0_7px_rgba(253,224,71,0.9)]" />
             </div>
-          )}
+          ) : null}
 
           {/* Hitmarker 'X' Tick Animation */}
           {hitmarker && showHitmarker && (

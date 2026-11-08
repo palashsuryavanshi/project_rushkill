@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { GameSettings, WeaponDef } from '../game/types';
 import { RUSH_WEAPONS } from '../game/weapons';
-import { Play, RotateCcw, Home, Sliders, Volume2, VolumeX, Crosshair } from 'lucide-react';
+import { Play, RotateCcw, Home, Sliders, Volume2, VolumeX, Crosshair, Users } from 'lucide-react';
 import { sound } from '../game/audio';
 
 interface PauseModalProps {
@@ -12,6 +12,8 @@ interface PauseModalProps {
   onResume: () => void;
   onRestart: () => void;
   onReturnTitle: () => void;
+  onOpenMultiplayer?: () => void;
+  isMultiplayer?: boolean;
 }
 
 export const PauseModal: React.FC<PauseModalProps> = ({
@@ -22,6 +24,8 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   onResume,
   onRestart,
   onReturnTitle,
+  onOpenMultiplayer,
+  isMultiplayer = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'settings' | 'loadout'>('settings');
   const [isMuted, setIsMuted] = useState(sound.getIsMuted());
@@ -228,6 +232,19 @@ export const PauseModal: React.FC<PauseModalProps> = ({
               <Home className="w-4 h-4" />
               Main Menu
             </button>
+            {onOpenMultiplayer && (
+              <button
+                onClick={onOpenMultiplayer}
+                className={`px-4 py-2.5 border text-xs font-bold uppercase rounded-xl flex items-center gap-2 transition-colors cursor-pointer ${
+                  isMultiplayer 
+                    ? 'bg-purple-600/50 text-purple-200 border border-purple-500/50' 
+                    : 'bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                Multiplayer
+              </button>
+            )}
           </div>
 
           <button

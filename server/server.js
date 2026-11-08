@@ -5,11 +5,12 @@ import { URL } from 'url';
 /**
  * Creates a WebSocket relay server for multiplayer rooms.
  * @param {Object} options - Server options
- * @param {number} options.port - Port to listen on (default: 3001)
+ * @param {number} options.port - Port to listen on (default: 3000, same as game)
+ * @param {import('http').Server} [options.httpServer] - Reuse existing HTTP server (Vite same-port)
  * @returns {Object} Server instance with close() method
  */
 export function createServer(options = {}) {
-  const port = options.port || 3001;
+  const port = options.port || 3000;
   
   // Room management: Map<roomCode, { host, clients: Map<id, ws>, tick }>
   const rooms = new Map();
@@ -66,7 +67,8 @@ export function createServer(options = {}) {
       ws.send(JSON.stringify({
         type: 'joined',
         id: existingId,
-        name: existingName
+        name: existingName,
+        self: false
       }));
     }
     
@@ -78,7 +80,8 @@ export function createServer(options = {}) {
     ws.send(JSON.stringify({
       type: 'joined',
       id: clientId,
-      name: name
+      name: name,
+      self: true
     }));
     
     // Notify others in room about new player
@@ -151,10 +154,25 @@ export function createServer(options = {}) {
     }, clientId);
   }
   
-  // Create HTTP server for WebSocket upgrade
-  const httpServer = createHttpServer();
-  
-  const wss = new WebSocketServer({ server: httpServer });
+  // Attach relay to an HTTP server (same-port hosting).
+  // Use noServer + manual upgrade so Vite's HMR socket isn't stolen.
+  const httpServer = options.httpServer || createHttpServer();
+
+  const wss = new WebSocketServer({ noServer: true });
+  wss.on('error', (err) => console.error('[relay] wss error:', err.message));
+
+  httpServer.on('upgrade', (req, socket, head) => {
+    try {
+      const u = new URL(req.url, `http://${req.headers.host || `localhost:${port}`}`);
+      // Relay owns only ?room= upgrades; everything else (Vite HMR) passes through.
+      if (!u.searchParams.has('room')) return;
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
+    } catch (e) {
+      try { socket.destroy(); } catch {}
+    }
+  });
   
   wss.on('connection', (ws, req) => {
     // Parse room code from query parameter
@@ -174,8 +192,9 @@ export function createServer(options = {}) {
     let clientId = generateId();
     let hasJoined = false;
     
-    // Handle incoming messages
-    ws.on('message', (data) => {
+    // Handle incoming messages (ignore binary frames — e.g. stray HMR)
+    ws.on('message', (data, isBinary) => {
+      if (isBinary) return;
       try {
         const message = JSON.parse(data.toString());
         
@@ -199,6 +218,14 @@ export function createServer(options = {}) {
             handleState(roomCode, clientId, message);
             break;
           }
+
+           case 'ping': {
+             ws.send(JSON.stringify({ type: 'pong' }));
+             break;
+           }
+           case 'pong': {
+             break;
+           }
           
           default: {
             ws.send(JSON.stringify({
@@ -231,6 +258,17 @@ export function createServer(options = {}) {
     });
   });
   
+  // If caller gave us their httpServer (Vite same-port), don't listen here.
+  if (options.httpServer) {
+    console.log(`Relay attached to existing HTTP server (same port)`);
+    return {
+      wss,
+      httpServer,
+      rooms,
+      port,
+    };
+  }
+
   // Start server
   return new Promise((resolve) => {
     httpServer.listen(port, () => {

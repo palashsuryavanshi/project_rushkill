@@ -32,6 +32,7 @@ export interface JoinedMessage {
   type: 'joined';
   id: string;           // Authoritative client ID assigned by server
   name: string;         // Player name
+  self?: boolean;       // True for the joining client's own confirmation
 }
 
 /** Server → Client: Another player left */

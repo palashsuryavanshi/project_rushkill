@@ -3,12 +3,17 @@ import { Copy, Users, Play, LogOut, Wifi, WifiOff, Crown } from 'lucide-react';
 import { MultiplayerEngine } from '../game/MultiplayerEngine';
 import { NetworkManager, ConnectionState } from '../game/NetworkManager';
 import { Player } from '../game/MultiplayerEngine';
+import { startWebSocketServer } from '../utils/webSocketServer';
+import { MatchConfig, WeaponCategory, BotDifficulty } from '../game/types';
+import { GameSetupScreen } from './GameSetupScreen';
 
 interface MultiplayerUIProps {
   multiplayerEngine: MultiplayerEngine;
   networkManager: NetworkManager;
   onBackToMenu?: () => void;
   onStartGame?: () => void;
+  matchConfig?: MatchConfig;
+  onUpdateMatchConfig?: (cfg: MatchConfig) => void;
 }
 
 // Room code generation utility
@@ -18,18 +23,20 @@ const generateRoomCode = (): string => {
 
 // Room code validation utility
 const isValidRoomCode = (code: string): boolean => {
-  return /^[A-Z]{6}$/.test(code);
+  return /^[A-Z0-9]{6}$/i.test(code);
 };
 
 export const HostScreen: React.FC<{
   multiplayerEngine: MultiplayerEngine;
   networkManager: NetworkManager;
   playerName: string;
+  onNameChange?: (name: string) => void;
   onRoomCreated: (roomCode: string) => void;
-}> = ({ multiplayerEngine, networkManager, playerName, onRoomCreated }) => {
+}> = ({ multiplayerEngine, networkManager, playerName, onNameChange, onRoomCreated }) => {
   const [roomCode, setRoomCode] = useState<string>('');
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [serverPort, setServerPort] = useState<number | null>(null);
 
   const createRoom = useCallback(async () => {
     if (!playerName.trim()) {
@@ -44,7 +51,11 @@ export const HostScreen: React.FC<{
       const newRoomCode = generateRoomCode();
       setRoomCode(newRoomCode);
       
-      await multiplayerEngine.startMultiplayer(newRoomCode, true, playerName.trim());
+      // Server starts ONLY after Host click (main-menu Multiplayer → Host)
+      const server = await startWebSocketServer();
+      setServerPort(server.port);
+      
+      await multiplayerEngine.startMultiplayer(newRoomCode, true, playerName.trim(), server.url);
       onRoomCreated(newRoomCode);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create room');
@@ -77,12 +88,7 @@ export const HostScreen: React.FC<{
             <input
               type="text"
               value={playerName}
-              onChange={(e) => {
-                const newValue = e.target.value;
-                if (newValue && newValue !== playerName && newValue.trim() !== playerName.trim()) {
-                  // Handle name change logic here if needed
-                }
-              }}
+              onChange={(e) => onNameChange?.(e.target.value)}
               placeholder="Enter your name"
               className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
@@ -133,9 +139,10 @@ export const JoinScreen: React.FC<{
   multiplayerEngine: MultiplayerEngine;
   networkManager: NetworkManager;
   playerName: string;
+  onNameChange?: (name: string) => void;
   onJoined: (roomCode: string) => void;
   onBack: () => void;
-}> = ({ multiplayerEngine, networkManager, playerName, onJoined, onBack }) => {
+}> = ({ multiplayerEngine, networkManager, playerName, onNameChange, onJoined, onBack }) => {
   const [roomCode, setRoomCode] = useState<string>('');
   const [isJoining, setIsJoining] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -157,7 +164,9 @@ export const JoinScreen: React.FC<{
     setError('');
 
     try {
-      await multiplayerEngine.startMultiplayer(trimmedCode, false, playerName.trim());
+      // Server starts ONLY after Join click (main-menu Multiplayer → Join)
+      const server = await startWebSocketServer();
+      await multiplayerEngine.startMultiplayer(trimmedCode, false, playerName.trim(), server.url);
       onJoined(trimmedCode);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join room');
@@ -190,12 +199,7 @@ export const JoinScreen: React.FC<{
             <input
               type="text"
               value={playerName}
-              onChange={(e) => {
-                const newValue = e.target.value;
-                if (newValue && newValue !== playerName && newValue.trim() !== playerName.trim()) {
-                  // Handle name change logic here if needed
-                }
-              }}
+              onChange={(e) => onNameChange?.(e.target.value)}
               placeholder="Enter your name"
               className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
@@ -244,7 +248,8 @@ export const LobbyScreen: React.FC<{
   playerName: string;
   onStartGame: () => void;
   onLeave: () => void;
-}> = ({ multiplayerEngine, networkManager, roomCode, playerName, onStartGame, onLeave }) => {
+  onOpenSetup?: () => void;
+}> = ({ multiplayerEngine, networkManager, roomCode, playerName, onStartGame, onLeave, onOpenSetup }) => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionState>(ConnectionState.Disconnected);
   const [error, setError] = useState<string>('');
@@ -290,7 +295,19 @@ export const LobbyScreen: React.FC<{
   }, [multiplayerEngine, networkManager]);
 
   const isHost = multiplayerEngine.isHost;
-  const canStartGame = players.length >= 2;
+  const canStartGame = players.length >= 1;
+
+  // Client auto-starts when host broadcasts state (no explicit signal on relay)
+  useEffect(() => {
+    if (isHost) return;
+    const t = setInterval(() => {
+      if (multiplayerEngine.latestState) {
+        onStartGame();
+        clearInterval(t);
+      }
+    }, 500);
+    return () => clearInterval(t);
+  }, [isHost, multiplayerEngine, onStartGame]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
@@ -368,6 +385,14 @@ export const LobbyScreen: React.FC<{
             >
               <Play className="w-4 h-4 inline mr-2" />
               START GAME ({players.length} players)
+            </button>
+          )}
+          {isHost && onOpenSetup && (
+            <button
+              onClick={onOpenSetup}
+              className="w-full py-3 bg-slate-700/50 border border-slate-600 text-slate-300 font-medium rounded-lg hover:bg-slate-600 transition-colors"
+            >
+              MATCH SETUP (host only)
             </button>
           )}
         </div>
@@ -480,8 +505,10 @@ export const MultiplayerUI: React.FC<MultiplayerUIProps> = ({
   networkManager,
   onBackToMenu,
   onStartGame,
+  matchConfig,
+  onUpdateMatchConfig,
 }) => {
-  const [screen, setScreen] = useState<'menu' | 'host' | 'join' | 'lobby' | 'game'>('menu');
+  const [screen, setScreen] = useState<'menu' | 'host' | 'join' | 'lobby' | 'setup' | 'game'>('menu');
   const [roomCode, setRoomCode] = useState<string>('');
   const [playerName, setPlayerName] = useState<string>('Player');
   const [error, setError] = useState<string>('');
@@ -519,6 +546,7 @@ export const MultiplayerUI: React.FC<MultiplayerUIProps> = ({
             multiplayerEngine={multiplayerEngine}
             networkManager={networkManager}
             playerName={playerName}
+            onNameChange={setPlayerName}
             onRoomCreated={handleRoomCreated}
           />
         );
@@ -528,6 +556,7 @@ export const MultiplayerUI: React.FC<MultiplayerUIProps> = ({
             multiplayerEngine={multiplayerEngine}
             networkManager={networkManager}
             playerName={playerName}
+            onNameChange={setPlayerName}
             onJoined={handleJoined}
             onBack={() => setScreen('menu')}
           />
@@ -541,6 +570,17 @@ export const MultiplayerUI: React.FC<MultiplayerUIProps> = ({
             playerName={playerName}
             onStartGame={handleStartGame}
             onLeave={handleLeave}
+            onOpenSetup={() => setScreen('setup')}
+          />
+        );
+      case 'setup':
+        if (!matchConfig) return null;
+        return (
+          <GameSetupScreen
+            config={matchConfig}
+            onUpdateConfig={(cfg) => onUpdateMatchConfig?.(cfg)}
+            onContinueToLoadout={() => setScreen('lobby')}
+            onBackToMenu={() => setScreen('lobby')}
           />
         );
       case 'game':

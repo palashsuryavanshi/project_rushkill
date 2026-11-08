@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Volume2, VolumeX, Play, Settings as SettingsIcon, Shield, Sliders, ChevronRight, Crosshair } from 'lucide-react';
+import { Volume2, VolumeX, Play, Settings as SettingsIcon, Shield, Sliders, ChevronRight, Crosshair, Users } from 'lucide-react';
 import { sound } from '../game/audio';
 import { WeaponDef } from '../game/types';
 
@@ -9,6 +9,7 @@ interface MainMenuProps {
   onOpenSetup: () => void;
   onOpenLoadout: () => void;
   onOpenSettings: () => void;
+  onOpenMultiplayer?: () => void;
 }
 
 export const MainMenu: React.FC<MainMenuProps> = ({
@@ -17,6 +18,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   onOpenSetup,
   onOpenLoadout,
   onOpenSettings,
+  onOpenMultiplayer,
 }) => {
   const [isMuted, setIsMuted] = useState(sound.getIsMuted());
 
@@ -128,7 +130,21 @@ export const MainMenu: React.FC<MainMenuProps> = ({
           <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
         </button>
 
-        {/* 4. Settings */}
+        {/* 4. Multiplayer (main menu entry — server starts on Host/Join click) */}
+        {onOpenMultiplayer && (
+          <button
+            onClick={onOpenMultiplayer}
+            className="group px-6 py-3.5 bg-purple-900/90 hover:bg-purple-800/90 border border-purple-700/80 hover:border-purple-400 text-white font-bold tracking-wider text-sm uppercase rounded-2xl shadow-lg flex items-center justify-between transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <Users className="w-5 h-5 text-purple-400" />
+              <span>MULTIPLAYER</span>
+            </div>
+            <ChevronRight className="w-4 h-4 text-purple-400 group-hover:text-purple-200 group-hover:translate-x-0.5 transition-all" />
+          </button>
+        )}
+
+        {/* 5. Settings */}
         <button
           onClick={onOpenSettings}
           className="group px-6 py-3.5 bg-slate-900/90 hover:bg-slate-800/90 border border-slate-700/80 hover:border-slate-500 text-slate-300 hover:text-white font-bold tracking-wider text-sm uppercase rounded-2xl shadow-lg flex items-center justify-between transition-all cursor-pointer"

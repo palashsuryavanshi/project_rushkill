@@ -40,6 +40,9 @@ export interface GameEngine {
     hp: number;
     weapon: string;
   };
+  spawnRemotePlayer?: (id: string, name: string, pos: [number, number, number]) => void;
+  updateRemotePlayer?: (id: string, pos: [number, number, number], rot: [number, number]) => void;
+  removeRemotePlayer?: (id: string) => void;
 }
 
 export class MultiplayerEngine {
@@ -81,49 +84,47 @@ export class MultiplayerEngine {
   public attachNetworkManager(networkManager: NetworkManager): void {
     this.networkManager = networkManager;
     
-    // Set up event handlers
-    if (networkManager.onState) {
-      networkManager.onState = (state: StateMessage) => {
-        this.handleStateMessage(state);
-      };
-    }
+    // Set up event handlers (fresh NetworkManager starts with null handlers)
+    networkManager.onState = (state: StateMessage) => {
+      this.handleStateMessage(state);
+    };
     
-    if (networkManager.onPlayerJoin) {
-      networkManager.onPlayerJoin = (joined: JoinedMessage) => {
-        this.handlePlayerJoined(joined);
-      };
-    }
+    networkManager.onPlayerJoin = (joined: JoinedMessage) => {
+      this.handlePlayerJoined(joined);
+    };
     
-    if (networkManager.onPlayerLeave) {
-      networkManager.onPlayerLeave = (left: LeftMessage) => {
-        this.handlePlayerLeft(left);
-      };
-    }
+    networkManager.onPlayerLeave = (left: LeftMessage) => {
+      this.handlePlayerLeft(left);
+    };
     
-    if (networkManager.onHostMigrated) {
-      networkManager.onHostMigrated = (migrated: HostMigratedMessage) => {
-        this.handleHostMigrated(migrated);
-      };
-    }
+    networkManager.onHostMigrated = (migrated: HostMigratedMessage) => {
+      this.handleHostMigrated(migrated);
+    };
   }
   
   public attachGameEngine(gameEngine: GameEngine): void {
     this.gameEngine = gameEngine;
   }
   
-  public async startMultiplayer(room: string, isHost: boolean, name: string): Promise<void> {
+  public async startMultiplayer(room: string, isHost: boolean, name: string, serverUrl?: string): Promise<void> {
     if (!this.networkManager) {
       throw new Error('NetworkManager not attached');
     }
     
+    console.warn("[MP] startMultiplayer", { room, isHost, name, serverUrl, beforePlayers: this.players.size });
     this.room = room;
     this.isHost = isHost;
     this.isMultiplayer = true;
+
+    if (this.gameEngine) {
+      (this.gameEngine as any).isMultiplayer = true;
+    }
     
     // Connect to the relay server
-    await this.networkManager.connect(room, isHost, name);
+    await this.networkManager.connect(room, isHost, name, serverUrl);
+
+    console.warn("[MP] connected", { clientId: this.networkManager.clientId, state: this.networkManager.state, playersAfterConnect: this.players.size });
     
-    // Add self to players
     const selfState = this.gameEngine?.getPlayerState?.();
     if (selfState) {
       this.players.set(this.networkManager.clientId!, {
@@ -136,46 +137,55 @@ export class MultiplayerEngine {
         isHost
       });
     }
+    console.warn("[MP] startMultiplayerdone", { clientId: this.networkManager.clientId, playerCount: this.players.size, names: Array.from(this.players.values()).map(p=>p.name) });
   }
   
   public update(delta: number): void {
     if (!this.isMultiplayer || !this.networkManager) {
       return;
     }
-    
-    if (this.isHost) {
-      this.updateHost(delta);
-    } else {
-      this.updateClient(delta);
-    }
-  }
-  
-  private updateHost(delta: number): void {
     if (!this.gameEngine || !this.networkManager) {
       return;
     }
-    
-    // Broadcast game state at 30Hz
+
+    // Every peer broadcasts its OWN player state (relay forwards to others).
     this.broadcastTimer += delta;
     if (this.broadcastTimer >= this.broadcastInterval) {
       this.broadcastTimer = 0;
-      this.broadcastPlayerState();
+      this.broadcastSelf(delta);
     }
-    
-    // Update game engine (bots, single-player logic)
-    this.gameEngine.update(delta);
-  }
-  
-  private updateClient(delta: number): void {
-    if (!this.gameEngine || !this.networkManager) {
-      return;
-    }
-    
+
     // Update local game engine (player controls, etc.)
     this.gameEngine.update(delta);
-    
-    // Interpolate other players' positions
+
+    // Interpolate (and render) other players' positions
     this.interpolatePlayers(delta);
+  }
+
+  /** Each peer sends its own entity at 30Hz. */
+  private broadcastSelf(_delta: number): void {
+    const state = this.gameEngine?.getPlayerState?.();
+    if (!state) return;
+    if (!this.networkManager) return;
+    const clientId = this.networkManager.clientId;
+    if (!clientId) return;
+    const message: StateMessage = {
+      type: 'state',
+      tick: performance.now(),
+      entities: [{
+        id: clientId,
+        x: state.pos[0],
+        y: state.pos[1],
+        z: state.pos[2],
+        yaw: state.rot[1],
+        pitch: state.rot[0],
+        hp: state.hp
+      }]
+    };
+    const nm = this.networkManager;
+    if (!nm) return;
+    nm.broadcastState(message);
+    this.latestState = message;
   }
   
   private broadcastPlayerState(): void {
@@ -338,25 +348,59 @@ export class MultiplayerEngine {
         existingPlayer.pos = [entity.x, entity.y, entity.z];
         existingPlayer.rot = [entity.pitch, entity.yaw, 0];
         existingPlayer.hp = entity.hp || existingPlayer.hp;
+        if (entity.id !== this.networkManager?.clientId) {
+          this.gameEngine?.updateRemotePlayer?.(entity.id, [entity.x, entity.y, entity.z], [entity.pitch, entity.yaw]);
+        }
       } else {
-        // New player - this shouldn't happen in state messages, only joined messages
-        console.warn('Received state for unknown player:', entity.id);
+        // New player observed via state (fallback if join missed)
+        const newPlayer: Player = {
+          id: entity.id,
+          name: `Player ${entity.id.slice(0, 4)}`,
+          pos: [entity.x, entity.y, entity.z],
+          rot: [entity.pitch, entity.yaw, 0],
+          hp: entity.hp || 100,
+          weapon: 'rival_9',
+          isHost: entity.id === this.networkManager?.clientId
+        };
+        this.players.set(entity.id, newPlayer);
+        this.gameEngine?.spawnRemotePlayer?.(entity.id, newPlayer.name, [entity.x, entity.y, entity.z]);
       }
     }
   }
   
   private handlePlayerJoined(joined: JoinedMessage): void {
+    const selfId = this.networkManager?.clientId;
+    if (joined.id === selfId) {
+      // Self already tracked; no remote mesh.
+      const existingPlayer = this.players.get(joined.id);
+      if (!existingPlayer) {
+        const newPlayer: Player = {
+          id: joined.id,
+          name: joined.name,
+          pos: [0, 0, 0],
+          rot: [0, 0, 0],
+          hp: 100,
+          weapon: 'rival_9',
+          isHost: true
+        };
+        this.players.set(joined.id, newPlayer);
+      }
+      this.onPlayerJoin?.(this.players.get(joined.id)!);
+      return;
+    }
+
     const newPlayer: Player = {
       id: joined.id,
       name: joined.name,
-      pos: [0, 0, 0], // Will be updated in next state
+      pos: [0, 0, 0],
       rot: [0, 0, 0],
       hp: 100,
       weapon: 'rival_9',
-      isHost: joined.id === this.networkManager?.clientId
+      isHost: false
     };
-    
+
     this.players.set(joined.id, newPlayer);
+    this.gameEngine?.spawnRemotePlayer?.(joined.id, joined.name, [0, 0, 0]);
     this.onPlayerJoin?.(newPlayer);
   }
   
@@ -364,6 +408,9 @@ export class MultiplayerEngine {
     const player = this.players.get(left.id);
     if (player) {
       this.players.delete(left.id);
+      if (left.id !== this.networkManager?.clientId) {
+        this.gameEngine?.removeRemotePlayer?.(left.id);
+      }
       this.onPlayerLeave?.(left.id);
     }
   }

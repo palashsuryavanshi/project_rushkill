@@ -14,7 +14,7 @@
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": ".",
-    "baseUrl": ".",
+   
     "types": ["node", "jest", "ws"],
     "isolatedModules": true
   },
