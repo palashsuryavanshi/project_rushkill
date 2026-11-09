@@ -55,7 +55,17 @@ export const HostScreen: React.FC<{
       const server = await startWebSocketServer();
       setServerPort(server.port);
       
-      await multiplayerEngine.startMultiplayer(newRoomCode, true, playerName.trim(), server.url);
+      // Start multiplayer with a timeout fallback - if connection fails, show error
+      const multiplayerPromise = multiplayerEngine.startMultiplayer(newRoomCode, true, playerName.trim(), server.url);
+      
+      // Wait for multiplayer to start, but not hang indefinitely
+      await Promise.race([
+        multiplayerPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Connection timeout - unable to join room')), 15000)
+        )
+      ]);
+      
       onRoomCreated(newRoomCode);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create room');
