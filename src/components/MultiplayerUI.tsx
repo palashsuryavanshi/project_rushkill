@@ -295,19 +295,7 @@ export const LobbyScreen: React.FC<{
   }, [multiplayerEngine, networkManager]);
 
   const isHost = multiplayerEngine.isHost;
-  const canStartGame = players.length >= 1;
-
-  // Client auto-starts when host broadcasts state (no explicit signal on relay)
-  useEffect(() => {
-    if (isHost) return;
-    const t = setInterval(() => {
-      if (multiplayerEngine.latestState) {
-        onStartGame();
-        clearInterval(t);
-      }
-    }, 500);
-    return () => clearInterval(t);
-  }, [isHost, multiplayerEngine, onStartGame]);
+  const canStartGame = isHost && players.length >= 1;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
