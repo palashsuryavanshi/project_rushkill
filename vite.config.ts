@@ -5,16 +5,24 @@ import {defineConfig} from 'vite';
 // @ts-ignore - JS module, no types
 import {createServer as createRelay} from './server/server.js';
 
+console.log('Vite config: Relay function imported');
+
 // Same-port relay: attach the WebSocket relay to Vite's HTTP server so
 // `npm run dev` serves game + multiplayer on ONE port (no 3002/3003 guessing).
 function samePortRelay(): any {
   return {
     name: 'same-port-relay',
     configureServer(server: any) {
+      console.log('Vite config: configureServer called');
       const httpServer = server.httpServer;
-      if (!httpServer) return;
+      if (!httpServer) {
+        console.log('Vite config: No httpServer found');
+        return;
+      }
+      console.log('Vite config: httpServer found, creating relay...');
       // @ts-ignore - relay options include httpServer for same-port hosting
       const relay: any = createRelay({ httpServer, port: server.config.server.port || 3000 });
+      console.log('Vite config: Relay created');
       server.config.logger.info(`Relay ready at ws://localhost:${server.config.server.port}`);
       server.httpServer?.on('close', () => {
         try { relay.wss.close(); } catch {}

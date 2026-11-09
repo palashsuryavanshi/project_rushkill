@@ -129,6 +129,12 @@ export class NetworkManager {
     this.isFreshConnect = false;
 
     return new Promise((resolve, reject) => {
+      let joinedReceived = false;
+      
+      const cleanup = () => {
+        this.handleMessage = originalHandleMessage;
+      };
+
       try {
         const url = `${serverUrl || 'wss://rushkill-relay.fly.dev'}?room=${encodeURIComponent(room)}`;
         console.log('[NetworkManager] Connecting to:', url);
@@ -156,57 +162,64 @@ export class NetworkManager {
 
         this.ws.onmessage = (event: MessageEvent) => {
           console.log('[NetworkManager] Received message:', event.data);
+          
+          if (!joinedReceived) {
+            try {
+              const msg = JSON.parse(event.data) as Message;
+              if (msg.type === 'joined') {
+                const jm = msg as JoinedMessage;
+                if (jm.self === true) {
+                  console.log('[NetworkManager] Self-joined confirmation received:', jm);
+                  this.assignedId = jm.id;
+                  joinedReceived = true;
+                  cleanup();
+                  resolve();
+                  return;
+                }
+              }
+            } catch (err) {
+              console.error('[NetworkManager] Error parsing joined message:', err);
+            }
+          }
+          
+          // Handle all messages normally after joined
           this.handleMessage(event.data);
         };
 
         this.ws.onclose = (event: CloseEvent) => {
           console.log('[NetworkManager] WebSocket connection closed:', event);
+          if (!joinedReceived) {
+            cleanup();
+            reject(new Error('Connection closed before joined confirmation'));
+          }
           this.handleClose(event);
         };
 
         this.ws.onerror = (event: Event) => {
           console.error('[NetworkManager] WebSocket error:', event);
+          if (!joinedReceived) {
+            cleanup();
+            reject(new Error('WebSocket error'));
+          }
           // onclose will be called after onerror, handle cleanup there
         };
 
         // Store original handleMessage to restore after joined
         const originalHandleMessage = this.handleMessage.bind(this);
 
-        // We'll resolve when we receive the self-joined confirmation
-        const checkJoined = (msg: Message) => {
-          if (msg.type === 'joined') {
-            const jm = msg as JoinedMessage;
-            if (jm.self === true) {
-              this.assignedId = jm.id;
-              // Restore original handleMessage after joined is received
-              this.handleMessage = originalHandleMessage;
-              resolve();
-            }
-          }
-        };
-
-        // Temporarily intercept messages to catch joined
-        this.handleMessage = (data: string) => {
-          try {
-            const msg = JSON.parse(data) as Message;
-            checkJoined(msg);
-            originalHandleMessage(data);
-          } catch {
-            originalHandleMessage(data);
-          }
-        };
-
         // Timeout for connection
         setTimeout(() => {
-          if (this.connectionState === ConnectionState.Connecting) {
+          if (this.connectionState === ConnectionState.Connecting && !joinedReceived) {
             this.connectionTimedOut = true;
             this.connectionState = ConnectionState.Disconnected;
             this.ws?.close();
+            cleanup();
             reject(new Error('Connection timeout - unable to join room'));
           }
         }, 15000);
       } catch (err) {
         this.connectionState = ConnectionState.Disconnected;
+        cleanup();
         reject(err);
       }
     });
