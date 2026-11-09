@@ -54,9 +54,11 @@ export const HostScreen: React.FC<{
       // Server starts ONLY after Host click (main-menu Multiplayer → Host)
       const server = await startWebSocketServer();
       setServerPort(server.port);
+      console.log('WebSocket server started:', server.url);
       
       // Start multiplayer with a timeout fallback - if connection fails, show error
       const multiplayerPromise = multiplayerEngine.startMultiplayer(newRoomCode, true, playerName.trim(), server.url);
+      console.log('Starting multiplayer with:', { room: newRoomCode, isHost: true, name: playerName.trim(), serverUrl: server.url });
       
       // Wait for multiplayer to start, but not hang indefinitely
       await Promise.race([

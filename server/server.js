@@ -48,10 +48,12 @@ export function createServer(options = {}) {
   
   // Handle client joining a room
   function handleJoin(ws, roomCode, clientId, name) {
+    console.log('[Server] handleJoin called:', { roomCode, clientId, name });
     let room = rooms.get(roomCode);
     
     if (!room) {
       // First joiner becomes host
+      console.log('[Server] Creating new room:', roomCode, 'with host:', clientId);
       room = {
         host: clientId,
         clients: new Map(),
@@ -61,9 +63,11 @@ export function createServer(options = {}) {
     }
     
     // Notify new client about existing players in the room
+    console.log('[Server] Notifying new client about existing players:', room.clients.size);
     for (const [existingId, existingWs] of room.clients) {
       // We need to get the name of existing clients - store it with the ws
       const existingName = existingWs._playerName || `Player${existingId.slice(0, 4)}`;
+      console.log('[Server] Sending joined notification for existing player:', { existingId, existingName });
       ws.send(JSON.stringify({
         type: 'joined',
         id: existingId,
@@ -77,6 +81,7 @@ export function createServer(options = {}) {
     ws._playerName = name;
     
     // Send joined confirmation to the joining client
+    console.log('[Server] Sending joined confirmation to client:', clientId);
     ws.send(JSON.stringify({
       type: 'joined',
       id: clientId,
@@ -85,6 +90,7 @@ export function createServer(options = {}) {
     }));
     
     // Notify others in room about new player
+    console.log('[Server] Notifying other players about new player:', clientId);
     broadcastToRoom(roomCode, {
       type: 'joined',
       id: clientId,
@@ -93,11 +99,19 @@ export function createServer(options = {}) {
     
     // If this is the host, notify them
     if (room.host === clientId) {
+      console.log('[Server] Notifying client they are host:', clientId);
       ws.send(JSON.stringify({
         type: 'host-migrated',
         newHost: clientId
       }));
     }
+    
+    console.log('[Server] Room state after join:', {
+      roomCode,
+      host: room.host,
+      totalClients: room.clients.size,
+      newClient: clientId
+    });
   }
   
   // Handle client leaving a room
@@ -197,6 +211,7 @@ export function createServer(options = {}) {
       if (isBinary) return;
       try {
         const message = JSON.parse(data.toString());
+        console.log('[Server] Received message:', message);
         
         switch (message.type) {
           case 'join': {
@@ -205,6 +220,7 @@ export function createServer(options = {}) {
             const joinId = message.id || clientId;
             clientId = joinId; // Update clientId for future messages
             hasJoined = true;
+            console.log('[Server] Handling join:', { roomCode, clientId, name });
             handleJoin(ws, roomCode, clientId, name);
             break;
           }
@@ -235,6 +251,7 @@ export function createServer(options = {}) {
           }
         }
       } catch (err) {
+        console.error('[Server] Error parsing message:', err);
         ws.send(JSON.stringify({
           type: 'error',
           message: 'Invalid JSON message'

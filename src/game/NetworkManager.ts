@@ -131,9 +131,11 @@ export class NetworkManager {
     return new Promise((resolve, reject) => {
       try {
         const url = `${serverUrl || 'wss://rushkill-relay.fly.dev'}?room=${encodeURIComponent(room)}`;
+        console.log('[NetworkManager] Connecting to:', url);
         this.ws = new WebSocket(url);
 
         this.ws.onopen = () => {
+          console.log('[NetworkManager] WebSocket connection opened');
           this.connectionState = ConnectionState.Connected;
           // Only reset reconnectAttempts on fresh connect, not on reconnection
           if (this.isFreshConnect) {
@@ -148,20 +150,23 @@ export class NetworkManager {
             type: 'join',
             name: this.playerName,
           };
+          console.log('[NetworkManager] Sending join message:', joinMsg);
           this.send(joinMsg);
         };
 
         this.ws.onmessage = (event: MessageEvent) => {
+          console.log('[NetworkManager] Received message:', event.data);
           this.handleMessage(event.data);
         };
 
         this.ws.onclose = (event: CloseEvent) => {
+          console.log('[NetworkManager] WebSocket connection closed:', event);
           this.handleClose(event);
         };
 
         this.ws.onerror = (event: Event) => {
-          // onclose will be called after onerror, handle cleanup there
           console.error('[NetworkManager] WebSocket error:', event);
+          // onclose will be called after onerror, handle cleanup there
         };
 
         // Store original handleMessage to restore after joined
@@ -197,9 +202,9 @@ export class NetworkManager {
             this.connectionTimedOut = true;
             this.connectionState = ConnectionState.Disconnected;
             this.ws?.close();
-            reject(new Error('Connection timeout'));
+            reject(new Error('Connection timeout - unable to join room'));
           }
-        }, 10000);
+        }, 15000);
       } catch (err) {
         this.connectionState = ConnectionState.Disconnected;
         reject(err);
@@ -278,11 +283,12 @@ export class NetworkManager {
     try {
       rawMsg = JSON.parse(data) as { type: string };
     } catch (err) {
-      console.error('[NetworkManager] Failed to parse message:', err);
+      console.error('[NetworkManager] Failed to parse message:', err, 'data:', data);
       return;
     }
 
     const msgType = rawMsg.type;
+    console.log('[NetworkManager] Processing message type:', msgType);
 
     // Handle ping from server - respond with pong
     if (msgType === 'ping') {
@@ -309,6 +315,7 @@ export class NetworkManager {
     }
 
     if (isJoinedMessage(fullMsg)) {
+      console.log('[NetworkManager] Joined message received:', fullMsg);
       this.assignedId = fullMsg.id;
       this.onPlayerJoin?.(fullMsg);
       return;
@@ -326,6 +333,7 @@ export class NetworkManager {
     }
 
     if (isErrorMessage(fullMsg)) {
+      console.error('[NetworkManager] Error message received:', fullMsg);
       this.onError?.(fullMsg);
       return;
     }

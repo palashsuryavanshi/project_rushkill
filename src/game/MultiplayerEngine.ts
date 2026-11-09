@@ -111,7 +111,7 @@ export class MultiplayerEngine {
       throw new Error('NetworkManager not attached');
     }
     
-    console.warn("[MP] startMultiplayer", { room, isHost, name, serverUrl, beforePlayers: this.players.size });
+    console.log("[MP] startMultiplayer", { room, isHost, name, serverUrl, beforePlayers: this.players.size });
     this.room = room;
     this.isHost = isHost;
     this.isMultiplayer = true;
@@ -121,23 +121,11 @@ export class MultiplayerEngine {
     }
     
     // Connect to the relay server
+    console.log("[MP] Connecting to network manager...");
     await this.networkManager.connect(room, isHost, name, serverUrl);
+    console.log("[MP] Connected to network manager", { clientId: this.networkManager.clientId, state: this.networkManager.state });
 
-    console.warn("[MP] connected", { clientId: this.networkManager.clientId, state: this.networkManager.state, playersAfterConnect: this.players.size });
-    
-    const selfState = this.gameEngine?.getPlayerState?.();
-    if (selfState) {
-      this.players.set(this.networkManager.clientId!, {
-        id: this.networkManager.clientId!,
-        name,
-        pos: selfState.pos,
-        rot: selfState.rot,
-        hp: selfState.hp,
-        weapon: selfState.weapon,
-        isHost
-      });
-    }
-    console.warn("[MP] startMultiplayerdone", { clientId: this.networkManager.clientId, playerCount: this.players.size, names: Array.from(this.players.values()).map(p=>p.name) });
+    console.log("[MP] startMultiplayerdone", { clientId: this.networkManager.clientId, playerCount: this.players.size, names: Array.from(this.players.values()).map(p=>p.name) });
   }
   
   public update(delta: number): void {
@@ -369,26 +357,16 @@ export class MultiplayerEngine {
   }
   
   private handlePlayerJoined(joined: JoinedMessage): void {
+    console.log("[MP] handlePlayerJoined", { joined, selfId: this.networkManager?.clientId, currentHost: this.isHost });
     const selfId = this.networkManager?.clientId;
-    if (joined.id === selfId) {
-      // Self already tracked; no remote mesh.
-      const existingPlayer = this.players.get(joined.id);
-      if (!existingPlayer) {
-        const newPlayer: Player = {
-          id: joined.id,
-          name: joined.name,
-          pos: [0, 0, 0],
-          rot: [0, 0, 0],
-          hp: 100,
-          weapon: 'rival_9',
-          isHost: true
-        };
-        this.players.set(joined.id, newPlayer);
-      }
-      this.onPlayerJoin?.(this.players.get(joined.id)!);
-      return;
+    const isSelf = joined.id === selfId;
+    
+    // Set isHost flag correctly for self
+    if (isSelf) {
+      this.isHost = joined.self === true || this.isHost;
+      console.log("[MP] Self joined, setting isHost to:", this.isHost);
     }
-
+    
     const newPlayer: Player = {
       id: joined.id,
       name: joined.name,
@@ -396,12 +374,20 @@ export class MultiplayerEngine {
       rot: [0, 0, 0],
       hp: 100,
       weapon: 'rival_9',
-      isHost: false
+      isHost: isSelf ? this.isHost : false
     };
 
     this.players.set(joined.id, newPlayer);
-    this.gameEngine?.spawnRemotePlayer?.(joined.id, joined.name, [0, 0, 0]);
-    this.onPlayerJoin?.(newPlayer);
+    console.log("[MP] Player added:", newPlayer, "total players:", this.players.size);
+    
+    if (isSelf) {
+      // For self, don't spawn remote mesh
+      this.onPlayerJoin?.(newPlayer);
+    } else {
+      // For other players, spawn remote mesh
+      this.gameEngine?.spawnRemotePlayer?.(joined.id, joined.name, [0, 0, 0]);
+      this.onPlayerJoin?.(newPlayer);
+    }
   }
   
   private handlePlayerLeft(left: LeftMessage): void {
