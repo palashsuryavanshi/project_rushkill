@@ -76,7 +76,7 @@ npm run dev:server
 - **Tailwind CSS v4** (styling)
 - **Web Audio API** (procedural sound synthesis)
 - **ws** (LAN multiplayer transport)
-- **Jest** (unit tests) · **Fly.io** (hosting)
+- **Jest** (unit tests)
 
 ## Project Structure
 
@@ -108,18 +108,6 @@ correction can eject the player into the ocean:
 ```bash
 node scripts/verify-stairs.ts
 ```
-
-## Deployment
-
-The game is a static bundle served from Fly.io:
-
-```bash
-npm run build
-flyctl deploy --app project-rushkill
-```
-
-Live at **https://project-rushkill.fly.dev/**. Machines scale to zero when idle, so the first
-request after a quiet period may take a few seconds to cold-start.
 
 ## Glossary
 
