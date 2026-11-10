@@ -6,7 +6,7 @@
   <p><em>Fast-paced 3D browser FPS with arcade-style movement</em></p>
 
   <p>
-    <a href="https://project-rushkill.fly.dev/"><strong>▶ Play it live</strong></a>
+    <a href="https://project-rushkill.fly.dev/" target="_blank" rel="noopener noreferrer"><strong>▶ Play it live</strong></a>
   </p>
 </div>
 
