@@ -308,6 +308,69 @@ class SoundEngine {
     osc.stop(t + 0.26);
   }
 
+  /** Soft tick when the player takes damage, scaled by feedback tier. */
+  public playHitSound(volume: number = 1) {
+    this.init();
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(320, t);
+    osc.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    gain.gain.setValueAtTime(0.25 * volume, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.11);
+  }
+
+  /** Bright confirmation chime layered on top of a headshot. */
+  public playHeadshotSound(volume: number = 1) {
+    this.init();
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1400, t);
+    osc.frequency.exponentialRampToValueAtTime(2100, t + 0.1);
+    gain.gain.setValueAtTime(0.2 * volume, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.15);
+  }
+
+  /** Stereo-panned damage tick: pan -1 is left, +1 is right. */
+  public playHitDirectionalSound(pan: number = 0, volume: number = 1) {
+    this.init();
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(500, t);
+    osc.frequency.exponentialRampToValueAtTime(220, t + 0.09);
+    gain.gain.setValueAtTime(0.22 * volume, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+
+    osc.connect(gain);
+    if (typeof this.ctx.createStereoPanner === 'function') {
+      const panner = this.ctx.createStereoPanner();
+      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), t);
+      gain.connect(panner);
+      panner.connect(this.masterGain);
+    } else {
+      gain.connect(this.masterGain);
+    }
+
+    osc.start(t);
+    osc.stop(t + 0.12);
+  }
+
   public playStreakFanfare() {
     this.init();
     if (!this.ctx || !this.masterGain || this.isMuted) return;

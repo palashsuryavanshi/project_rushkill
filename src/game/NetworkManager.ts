@@ -130,7 +130,10 @@ export class NetworkManager {
 
     return new Promise((resolve, reject) => {
       let joinedReceived = false;
-      
+
+      // Store original handleMessage so cleanup can restore it after joined.
+      const originalHandleMessage = this.handleMessage.bind(this);
+
       const cleanup = () => {
         this.handleMessage = originalHandleMessage;
       };
@@ -203,9 +206,6 @@ export class NetworkManager {
           }
           // onclose will be called after onerror, handle cleanup there
         };
-
-        // Store original handleMessage to restore after joined
-        const originalHandleMessage = this.handleMessage.bind(this);
 
         // Timeout for connection
         setTimeout(() => {

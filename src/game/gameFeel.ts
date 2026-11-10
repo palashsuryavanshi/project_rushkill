@@ -266,7 +266,15 @@ export class GameFeelSystem {
       const offsetX = this.trauma.maxOffset.x * shakeIntensity * Math.sin(this.traumaTime * 1.7);
       const offsetY = this.trauma.maxOffset.y * shakeIntensity * Math.sin(this.traumaTime * 2.3);
       const roll = this.trauma.maxRoll * shakeIntensity * Math.sin(this.traumaTime * 1.1);
-      \n      // Apply shake to camera\n      if (this.camera.parent) {\n        (this.camera.parent as any).position.x = offsetX;\n        (this.camera.parent as any).position.y = offsetY;\n        (this.camera.parent as any).rotation.z = roll;\n      }\n    }\n  }
+
+      // Apply shake to camera
+      if (this.camera.parent) {
+        (this.camera.parent as any).position.x = offsetX;
+        (this.camera.parent as any).position.y = offsetY;
+        (this.camera.parent as any).rotation.z = roll;
+      }
+    }
+  }
 
   private updateScreenEffects(deltaTime: number) {
     // Update vignette

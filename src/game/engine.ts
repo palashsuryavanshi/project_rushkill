@@ -48,6 +48,7 @@ export class GameEngine {
   private container: HTMLDivElement;
   private renderer: THREE.WebGLRenderer | null = null;
   private scene!: THREE.Scene;
+  private camera!: THREE.PerspectiveCamera;
   private mapData!: MapData;
   private sunLight!: THREE.DirectionalLight;
 
@@ -142,6 +143,15 @@ export class GameEngine {
   public get isPointerLocked(): boolean {
     return this.pointerLock?.isLocked ?? false;
   }
+
+  // Engine state
+  public isRunning: boolean = true;
+  public isTitleScreen: boolean = true;
+  private callbacks: EngineCallbacks;
+  public settings: GameSettings;
+  private lastStatsPayload: PlayerStats | null = null;
+  private lastMinimapSample: LastMinimap | null = null;
+  private lastScoreboardAt = 0;
 
   // Multiplayer state
   private multiplayerEngine: MultiplayerEngine | null = null;
@@ -401,7 +411,7 @@ export class GameEngine {
     
     this.applyViewmodelPose(ZERO_POSE, 0, 0);
     this.gameFeel?.setCamera(this.camera);
-    this.gameFeel?.setRenderer(this.renderer);
+    if (this.renderer) this.gameFeel?.setRenderer(this.renderer);
 
     this.notifyStats(true);
   }
@@ -451,6 +461,8 @@ export class GameEngine {
     
     return this.multiplayerEngine.startMultiplayer(room, isHost, name, serverUrl);
   }
+
+  private remotePlayerMeshes: Map<string, THREE.Group> = new Map();
 
   public spawnRemotePlayer(id: string, name: string, pos: [number, number, number]): void {
     if (this.remotePlayerMeshes.has(id)) return;
@@ -1428,17 +1440,97 @@ export class GameEngine {
               this.mapData.bulletBlockers
             );
           }
+
+          // Update multiplayer engine
+          if (this.multiplayerEngine) {
+            this.multiplayerEngine.update(dt);
+            this.sendMultiplayerInput();
+          }
+
+          // Match Timer countdown
+          const winner = this.matchLoop.advance(dt, this.kills, this.scoreLimit);
+          if (winner) {
+            this.callbacks.onMatchEnd(winner);
+          }
+
+          // Throttled HUD update
+          const hud = this.matchLoop.hudDue(dt);
+          if (hud.statsDue) {
+            this.notifyStats(true);
+            this.matchLoop.markStatsSent();
+          }
+          this.notifyMinimap(hud.minimapDue);
+          this.notifyScoreboard(now);
         }
       }
 
       // Update game feel system
       if (this.gameFeel) {
-        this.gameFeel.update(dt, this.isHitStopActive() ? 0.1 : 1.0);
+        this.gameFeel.update(dt, this.gameFeel.isHitStopActive() ? 0.1 : 1.0);
       }
 
-      this.frameId = requestAnimationFrame(tick);
+      // Draw the frame — this must run every tick or the canvas stays blank.
+      try {
+        this.renderer.render(this.scene, this.camera);
+      } catch (renderErr) {
+        console.warn('Render exception caught:', renderErr);
+      }
+
+      const fpsSample = this.matchLoop.sampleFps(
+        dt,
+        this.settings.showFps,
+        (this.renderer as any)?.info?.render?.calls ?? 0
+      );
+      if (fpsSample) {
+        this.callbacks.onFpsSample?.(fpsSample);
+      }
+
+      if (this.isSoftwareGl) {
+        afterDraw(tick);
+      } else {
+        this.frameId = requestAnimationFrame(tick);
+      }
     };
 
     tick();
+  }
+
+  public update(_delta: number): void {
+    // Called by the multiplayer engine; the real update runs in the main game loop.
+  }
+
+  public destroy() {
+    this.isRunning = false;
+    if (this.frameId) {
+      cancelAnimationFrame(this.frameId);
+      clearTimeout(this.frameId);
+    }
+    if (this.pointerLock) {
+      this.pointerLock.dispose();
+      this.pointerLock = null;
+    }
+    if (this.cleanupListeners) {
+      this.cleanupListeners();
+      this.cleanupListeners = null;
+    }
+    if (this.renderer) {
+      try {
+        if (this.renderer.domElement) {
+          if (this.handleContextLost) {
+            this.renderer.domElement.removeEventListener('webglcontextlost', this.handleContextLost);
+          }
+          if (this.handleContextRestored) {
+            this.renderer.domElement.removeEventListener('webglcontextrestored', this.handleContextRestored);
+          }
+          if (this.renderer.domElement.parentNode) {
+            this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+          }
+        }
+        this.renderer.dispose();
+      } catch (err) {
+        console.warn('Error during renderer disposal:', err);
+      }
+      this.renderer = null;
+    }
   }
 }
