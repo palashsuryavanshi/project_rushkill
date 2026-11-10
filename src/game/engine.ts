@@ -28,6 +28,7 @@ import { statsChanged, minimapChanged, LastMinimap } from './notifyGate';
 import { ScoreboardEntry, PLAYER_SCOREBOARD_ID } from './scoreboard';
 import { MultiplayerEngine } from './MultiplayerEngine';
 import { NetworkManager } from './NetworkManager';
+import { GameFeelSystem } from './gameFeel';
 
 export interface EngineCallbacks {
   onStatsUpdate: (stats: PlayerStats) => void;
@@ -47,7 +48,6 @@ export class GameEngine {
   private container: HTMLDivElement;
   private renderer: THREE.WebGLRenderer | null = null;
   private scene!: THREE.Scene;
-  private camera!: THREE.PerspectiveCamera;
   private mapData!: MapData;
   private sunLight!: THREE.DirectionalLight;
 
@@ -143,15 +143,6 @@ export class GameEngine {
     return this.pointerLock?.isLocked ?? false;
   }
 
-  // Engine state
-  public isRunning: boolean = true;
-  public isTitleScreen: boolean = true;
-  private callbacks: EngineCallbacks;
-  public settings: GameSettings;
-  private lastStatsPayload: PlayerStats | null = null;
-  private lastMinimapSample: LastMinimap | null = null;
-  private lastScoreboardAt = 0;
-
   // Multiplayer state
   private multiplayerEngine: MultiplayerEngine | null = null;
   private networkManager: NetworkManager | null = null;
@@ -164,6 +155,9 @@ export class GameEngine {
     keys: Record<string, boolean>;
     fire: boolean;
   }> = {};
+
+  // Game feel system for modern FPS indicators
+  private gameFeel: GameFeelSystem | null = null;
 
   // Public getters for testing
   public get botsList(): BotState[] {
@@ -258,7 +252,7 @@ export class GameEngine {
     canvas.addEventListener('webglcontextrestored', this.handleContextRestored, false);
 
     const width = Math.max(1, this.container.clientWidth || window.innerWidth || 800);
-    const height = Math.max(1, this.container.clientHeight || window.innerHeight || 600);
+    const height = Math.max(1, this.container.clientHeight || 600);
     this.renderer.setSize(width, height);
     // Allow up to 2x pixel ratio for crisp rendering on high-DPI, but cap for performance
     this.renderer.setPixelRatio(this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
@@ -385,31 +379,12 @@ export class GameEngine {
     this.reloadDuration = 0;
     
     this.applyViewmodelPose(ZERO_POSE, 0, 0);
+    this.gameFeel?.setCamera(this.camera);
+    this.gameFeel?.setRenderer(this.renderer);
 
     this.notifyStats(true);
   }
 
-  private spawnBots(difficulty: BotDifficulty = 'regular') {
-    if (this.isMultiplayer) return; // Don't spawn bots in multiplayer
-    
-    const personalities: BotPersonality[] = [
-      'assault',
-      'flanker',
-      'sniper',
-      'defender',
-      'support',
-      'balanced',
-    ];
-
-    personalities.forEach((pers, idx) => {
-      const spawnPos = this.mapData.spawnPoints[(idx + 1) % this.mapData.spawnPoints.length];
-      const bot = createBot(`bot_${idx}`, idx, pers, difficulty, spawnPos, this.mapData.waypoints);
-      this.bots.push(bot);
-      this.scene.add(bot.mesh);
-    });
-  }
-
-  // Multiplayer integration methods
   public attachMultiplayer(multiplayerEngine: MultiplayerEngine, networkManager: NetworkManager): void {
     this.multiplayerEngine = multiplayerEngine;
     this.networkManager = networkManager;
@@ -455,8 +430,6 @@ export class GameEngine {
     
     return this.multiplayerEngine.startMultiplayer(room, isHost, name, serverUrl);
   }
-
-  private remotePlayerMeshes: Map<string, THREE.Group> = new Map();
 
   public spawnRemotePlayer(id: string, name: string, pos: [number, number, number]): void {
     if (this.remotePlayerMeshes.has(id)) return;
@@ -675,14 +648,14 @@ export class GameEngine {
        const botCount = this.isMultiplayer ? 0 : Math.max(0, Math.min(10, config.botCount ?? 6));
        const difficulty: BotDifficulty = config.botDifficulty || 'regular';
 
-       for (let idx = 0; idx < botCount; idx++) {
-         const pers = personalities[idx % personalities.length];
-         const spawnPos = this.mapData.spawnPoints[(idx + 1) % this.mapData.spawnPoints.length];
-         const bot = createBot(`bot_${idx}`, idx, pers, difficulty, spawnPos, this.mapData.waypoints);
-         bot.weapon = getWeaponById('rival_9');
-         this.bots.push(bot);
-         this.scene.add(bot.mesh);
-       }
+      for (let idx = 0; idx < botCount; idx++) {
+        const pers = personalities[idx % personalities.length];
+        const spawnPos = this.mapData.spawnPoints[(idx + 1) % this.mapData.spawnPoints.length];
+        const bot = createBot(`bot_${idx}`, idx, pers, difficulty, spawnPos, this.mapData.waypoints);
+        bot.weapon = getWeaponById('rival_9');
+        this.bots.push(bot);
+        this.scene.add(bot.mesh);
+      }
     } else {
       this.scoreLimit = 25;
       this.matchTimeRemaining = 300;
@@ -871,7 +844,7 @@ export class GameEngine {
       if (isHead) this.headshots++;
 
       this.callbacks.onKillfeed({
-        id: `kf_${Date.now()}`,
+        id: `kf_${Date.now()}_${Math.random()}`,
         killer: 'You',
         victim: bot.name,
         weapon: this.activeWeapon.name,
@@ -938,6 +911,18 @@ export class GameEngine {
         this.healthRegen.onDamage();
         sound.playHurt();
 
+        // Apply game feel effects
+        if (this.gameFeel) {
+          this.gameFeel.processHit(
+            damage,
+            this.physics.pos.clone(),
+            bot.pos.clone(),
+            false,
+            'medium',
+            this
+          );
+        }
+
         if (this.hp <= 0) {
           bot.kills++;
           bot.score += 100;
@@ -972,7 +957,7 @@ export class GameEngine {
             this.notifyScoreboard(performance.now(), true);
 
             this.callbacks.onKillfeed({
-              id: `kf_${Date.now()}_${Math.random()}`,
+              id: `kf_${Date.now()}_${Math.random()}_${Math.random()}`,
               killer: bot.name,
               victim: targetBot.name,
               weapon: bot.weapon.name,
@@ -1422,92 +1407,17 @@ export class GameEngine {
               this.mapData.bulletBlockers
             );
           }
-
-          // Update multiplayer engine
-          if (this.multiplayerEngine) {
-            this.multiplayerEngine.update(dt);
-            this.sendMultiplayerInput();
-          }
-
-          // Match Timer countdown
-          const winner = this.matchLoop.advance(dt, this.kills, this.scoreLimit);
-          if (winner) {
-            this.callbacks.onMatchEnd(winner);
-          }
-
-          // Throttled HUD update
-          const hud = this.matchLoop.hudDue(dt);
-          if (hud.statsDue) {
-            this.notifyStats(true);
-            this.matchLoop.markStatsSent();
-          }
-          this.notifyMinimap(hud.minimapDue);
-          this.notifyScoreboard(now);
         }
       }
 
-      try {
-        this.renderer.render(this.scene, this.camera);
-      } catch (renderErr) {
-        console.warn('Render exception caught:', renderErr);
+      // Update game feel system
+      if (this.gameFeel) {
+        this.gameFeel.update(dt, this.isHitStopActive() ? 0.1 : 1.0);
       }
 
-      const fpsSample = this.matchLoop.sampleFps(
-        dt,
-        this.settings.showFps,
-        (this.renderer as any)?.info?.render?.calls ?? 0
-      );
-      if (fpsSample) {
-        this.callbacks.onFpsSample?.(fpsSample);
-      }
-
-      if (this.isSoftwareGl) {
-        afterDraw(tick);
-      } else {
-        this.frameId = requestAnimationFrame(tick);
-      }
+      this.frameId = requestAnimationFrame(tick);
     };
 
     tick();
-  }
-
-  public update(delta: number): void {
-    // This method is called by the multiplayer engine
-    // The actual game logic is in the main game loop
-  }
-
-  public destroy() {
-    this.isRunning = false;
-    if (this.frameId) {
-      cancelAnimationFrame(this.frameId);
-      clearTimeout(this.frameId);
-    }
-    if (this.pointerLock) {
-      this.pointerLock.dispose();
-      this.pointerLock = null;
-    }
-    if (this.cleanupListeners) {
-      this.cleanupListeners();
-      this.cleanupListeners = null;
-    }
-    if (this.renderer) {
-      try {
-        if (this.renderer.domElement) {
-          if (this.handleContextLost) {
-            this.renderer.domElement.removeEventListener('webglcontextlost', this.handleContextLost);
-          }
-          if (this.handleContextRestored) {
-            this.renderer.domElement.removeEventListener('webglcontextrestored', this.handleContextRestored);
-          }
-          if (this.renderer.domElement.parentNode) {
-            this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
-          }
-        }
-        this.renderer.dispose();
-      } catch (err) {
-        console.warn('Error during renderer disposal:', err);
-      }
-      this.renderer = null;
-    }
   }
 }
