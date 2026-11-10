@@ -189,6 +189,26 @@ export class GameEngine {
     this.startLoop();
   }
 
+  private spawnBots(difficulty: BotDifficulty = 'regular') {
+    if (this.isMultiplayer) return; // Don't spawn bots in multiplayer
+    
+    const personalities: BotPersonality[] = [
+      'assault',
+      'flanker',
+      'sniper',
+      'defender',
+      'support',
+      'balanced',
+    ];
+
+    personalities.forEach((pers, idx) => {
+      const spawnPos = this.mapData.spawnPoints[(idx + 1) % this.mapData.spawnPoints.length];
+      const bot = createBot(`bot_${idx}`, idx, pers, difficulty, spawnPos, this.mapData.waypoints);
+      this.bots.push(bot);
+      this.scene.add(bot.mesh);
+    });
+  }
+
   private initRenderer() {
     // Stage 1: Attempt standard high-performance WebGL context
     try {
