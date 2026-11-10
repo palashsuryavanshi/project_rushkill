@@ -235,6 +235,7 @@ export class GameEngine {
         this.webGlFailed = true;
         const msg = fallbackErr instanceof Error ? fallbackErr.message : 'WebGL context could not be created.';
         this.callbacks.onWebGLError?.(msg);
+        console.error('GameEngine: WebGL initialization failed - ' + msg);
         return;
       }
     }
