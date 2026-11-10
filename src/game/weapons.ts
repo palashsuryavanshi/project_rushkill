@@ -37,7 +37,7 @@ export const RUSH_WEAPONS: WeaponDef[] = [
     damage: 23,
     headshotMultiplier: 1.4,
     fireRateRpm: 910,
-    magSize: 30,
+    magSize: 45,
     reserveAmmo: Infinity,
     reloadTimeSec: 1.7,
     hipSpread: 0.038,
