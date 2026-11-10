@@ -106,9 +106,13 @@ export class PlayerPhysics {
     this.vel.x *= Math.pow(friction, dt * 60);
     this.vel.z *= Math.pow(friction, dt * 60);
 
+    // Clamp horizontal speed in the air too. Previously this only ran while
+    // grounded, so an airborne player accelerated to ~28 m/s (air accel 35 with
+    // light drag). Jumping near the open walkway rail then carried the player
+    // far outboard over the 1.2 m rail and into the ocean respawn.
     const maxSpeed = this.isSliding ? 18.0 : baseSpeed;
     const hSpeed = this.speed;
-    if (hSpeed > maxSpeed && this.isGrounded && !this.isSliding) {
+    if (hSpeed > maxSpeed && !this.isSliding) {
       this.vel.x = (this.vel.x / hSpeed) * maxSpeed;
       this.vel.z = (this.vel.z / hSpeed) * maxSpeed;
     }
@@ -210,37 +214,94 @@ export class PlayerPhysics {
       }
     }
     if (this.vel.y > 0 && nextPos.y + playerHeight > ceilingY) {
-      nextPos.y = ceilingY - playerHeight;
+      // ROOT CAUSE of the "stairs teleport me into the ocean" bug.
+      // This used to be `nextPos.y = ceilingY - playerHeight`, which moves the
+      // player DOWN by the full player height whenever the ceiling is lower than
+      // standing height. Walking along the outboard walkway underneath the
+      // external staircase (which has only 1.65 m of clearance for a 1.8 m
+      // player) therefore buried the player at y = -0.15 — inside the deck slab
+      // (y -0.40..0.00). The horizontal pass then resolved that overlap by the
+      // smallest exit, which was the outboard face of the deck slab, and shoved
+      // the player 2.45 m sideways to x = 12.65, outside the hull. From there
+      // they fell past y -3.5 and the ocean respawn fired.
+      //
+      // A ceiling may only ever cancel upward motion. It must never lower the
+      // player below the feet position they already had, otherwise it can push
+      // them through the floor they are standing on.
+      const ceilingLimitY = ceilingY - playerHeight;
+      if (ceilingLimitY > this.pos.y) nextPos.y = ceilingLimitY;
+      else nextPos.y = this.pos.y;
       this.vel.y = 0;
     }
-    for (const c of colliders) {
-      if (c.max.y <= nextPos.y + 0.08) continue;
-      if (c.min.y >= nextPos.y + playerHeight - 0.01) continue;
-      if (nextPos.y < c.max.y && nextPos.y + playerHeight > c.min.y) {
-        if (
-          nextPos.x + PLAYER_RADIUS > c.min.x &&
-          nextPos.x - PLAYER_RADIUS < c.max.x &&
-          nextPos.z + PLAYER_RADIUS > c.min.z &&
-          nextPos.z - PLAYER_RADIUS < c.max.z
-        ) {
-          const pushX1 = c.max.x - (nextPos.x - PLAYER_RADIUS);
-          const pushX2 = nextPos.x + PLAYER_RADIUS - c.min.x;
-          const pushZ1 = c.max.z - (nextPos.z - PLAYER_RADIUS);
-          const pushZ2 = nextPos.z + PLAYER_RADIUS - c.min.z;
-          if (pushX1 < pushX2 && pushX1 < pushZ1 && pushX1 < pushZ2) {
-            nextPos.x = c.max.x + PLAYER_RADIUS;
-            if (this.vel.x < 0) this.vel.x = 0;
-          } else if (pushX2 < pushX1 && pushX2 < pushZ1 && pushX2 < pushZ2) {
-            nextPos.x = c.min.x - PLAYER_RADIUS;
-            if (this.vel.x > 0) this.vel.x = 0;
-          } else if (pushZ1 < pushX1 && pushZ1 < pushX2 && pushZ1 < pushZ2) {
-            nextPos.z = c.max.z + PLAYER_RADIUS;
-            if (this.vel.z < 0) this.vel.z = 0;
-          } else {
-            nextPos.z = c.min.z - PLAYER_RADIUS;
-            if (this.vel.z > 0) this.vel.z = 0;
+    // ------------------------------------------------------------------
+    // Horizontal resolution: swept "stop at the first blocking face".
+    //
+    // The previous implementation pushed the player out of every overlapping
+    // box by that box's smallest penetration, independently, in a single pass.
+    // Because each push moved the player into the next box, corrections
+    // accumulated: standing slightly inside the internal staircase produced
+    // seven consecutive 0.8 m pushes in one frame and flung the player 5.15 m
+    // down the run. The same mechanism could shove the player out of the hull.
+    //
+    // Instead, for each axis we only clamp the move back to the first face the
+    // player would have crossed, so a correction can never exceed the distance
+    // the player actually tried to travel. No collider can teleport them.
+    //
+    // Stair climbing still works because the ground pass above runs on the
+    // desired (not yet clamped) position and lifts the player by STEP_HEIGHT
+    // first; anything we can step onto is skipped here.
+    // ------------------------------------------------------------------
+    const fromX = this.pos.x;
+    const fromZ = this.pos.z;
+
+    // Fixed X-then-Z order (not "dominant axis first"): clamping X first means
+    // the Z pass sees a non-overlapping X, so brushing a wall diagonally still
+    // lets the player slide along it instead of sticking.
+    for (const axis of ['x', 'z'] as const) {
+      const move = axis === 'x' ? nextPos.x - fromX : nextPos.z - fromZ;
+      if (Math.abs(move) < 1e-6) continue;
+      const sign = Math.sign(move);
+      let allowed = axis === 'x' ? nextPos.x : nextPos.z;
+      let blocked = false;
+
+      for (const c of colliders) {
+        // Anything at or below stepping height is walked onto, not blocked.
+        if (c.max.y <= nextPos.y + 0.08) continue;
+        // Anything entirely above the player is a ceiling, handled above.
+        if (c.min.y >= nextPos.y + playerHeight - 0.01) continue;
+        if (!(nextPos.y < c.max.y && nextPos.y + playerHeight > c.min.y)) continue;
+
+        // Only boxes that overlap on the other horizontal axis can block.
+        if (axis === 'x') {
+          if (nextPos.z + PLAYER_RADIUS <= c.min.z || nextPos.z - PLAYER_RADIUS >= c.max.z) continue;
+        } else {
+          if (nextPos.x + PLAYER_RADIUS <= c.min.x || nextPos.x - PLAYER_RADIUS >= c.max.x) continue;
+        }
+
+        const start = axis === 'x' ? fromX : fromZ;
+        if (sign > 0) {
+          const face = axis === 'x' ? c.min.x - PLAYER_RADIUS : c.min.z - PLAYER_RADIUS;
+          // `start <= face` means we were outside this box and are crossing into
+          // it. If we were already inside, do not clamp, so we can walk out.
+          if (start <= face && allowed > face) {
+            allowed = face;
+            blocked = true;
+          }
+        } else {
+          const face = axis === 'x' ? c.max.x + PLAYER_RADIUS : c.max.z + PLAYER_RADIUS;
+          if (start >= face && allowed < face) {
+            allowed = face;
+            blocked = true;
           }
         }
+      }
+
+      if (axis === 'x') {
+        nextPos.x = allowed;
+        if (blocked) this.vel.x = 0;
+      } else {
+        nextPos.z = allowed;
+        if (blocked) this.vel.z = 0;
       }
     }
     this.pos.copy(nextPos);

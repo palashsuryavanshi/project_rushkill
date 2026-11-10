@@ -283,6 +283,49 @@ export function buildHijackedMap(): MapData {
   // Stern Railing
   createSolidBox(24, 1.2, 0.4, 0, 0, 54.2, matBrass);
 
+  // ---------------------------------------------------------------------------
+  // Invisible over-height bulkhead around the hull perimeter.
+  //
+  // The visible brass rail is only 1.2 m tall, but a jump reaches ~1.5 m from
+  // deck level (JUMP_VELOCITY 5.42, gravity 9.81) and the outboard stair runs
+  // start the player at up to 4.6 m. resolveCollisions() only treats a box as an
+  // obstacle while the player's feet are below box.max.y + 0.08, so anything at
+  // rail height stopped blocking as soon as the player left the deck. Jumping
+  // next to an open walkway rail (e.g. beside the external stairs) therefore
+  // carried the player overboard, and the fall past y -3.5 fired the ocean
+  // respawn — the "stairs teleport me into the water" bug.
+  //
+  // Collider-only (never rendered, never a bullet blocker) and tall enough to
+  // cover the upper deck (4.6 m) plus a full jump apex.
+  const HULL_HALF_X = 12.2;
+  const HULL_HALF_Z = 54.2;
+  const BULKHEAD_HEIGHT = 7.0;
+  const BULKHEAD_HALF_T = 0.2;
+  const BULKHEAD_Z_MIN = -HULL_HALF_Z - BULKHEAD_HALF_T;
+  const BULKHEAD_Z_MAX = HULL_HALF_Z + BULKHEAD_HALF_T;
+  const BULKHEAD_X_MIN = -HULL_HALF_X - BULKHEAD_HALF_T;
+  const BULKHEAD_X_MAX = HULL_HALF_X + BULKHEAD_HALF_T;
+  for (const side of [-1, 1]) {
+    // Port / starboard walls, overlapping the bow and stern corners.
+    addCollider(
+      side * HULL_HALF_X - BULKHEAD_HALF_T,
+      0,
+      BULKHEAD_Z_MIN,
+      side * HULL_HALF_X + BULKHEAD_HALF_T,
+      BULKHEAD_HEIGHT,
+      BULKHEAD_Z_MAX
+    );
+    // Bow / stern walls.
+    addCollider(
+      BULKHEAD_X_MIN,
+      0,
+      side * HULL_HALF_Z - BULKHEAD_HALF_T,
+      BULKHEAD_X_MAX,
+      BULKHEAD_HEIGHT,
+      side * HULL_HALF_Z + BULKHEAD_HALF_T
+    );
+  }
+
   // ==========================================
   // 2. BOW (FORWARD DECK) - HELIPAD & COVER
   // ==========================================
